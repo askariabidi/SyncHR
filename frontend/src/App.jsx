@@ -4,6 +4,7 @@ import { AuthProvider } from './context/AuthContext';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import Login from './pages/Login';
 import EmployeeDashboard from './pages/EmployeeDashboard';
+import ApplyLeave from './pages/ApplyLeave';
 import './App.css';
 
 function App() {
@@ -20,6 +21,16 @@ function App() {
             element={
               <ProtectedRoute>
                 <EmployeeDashboard />
+              </ProtectedRoute>
+            }
+          />
+
+          {/* Protected Routes - Apply Leave */}
+          <Route
+            path="/dashboard/employee/leave"
+            element={
+              <ProtectedRoute>
+                <ApplyLeave />
               </ProtectedRoute>
             }
           />
