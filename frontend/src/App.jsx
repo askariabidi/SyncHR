@@ -7,6 +7,7 @@ import EmployeeDashboard from './pages/EmployeeDashboard';
 import ApplyLeave from './pages/ApplyLeave';
 import MyLeaveRequests from './pages/MyLeaveRequests';
 import HRDashboard from './pages/HRDashboard';
+import ViewPayslip from './pages/ViewPayslip';
 import './App.css';
 
 function App() {
@@ -53,6 +54,16 @@ function App() {
             element={
               <ProtectedRoute>
                 <MyLeaveRequests />
+              </ProtectedRoute>
+            }
+          />
+
+          {/* Protected Routes - View Payslip */}
+          <Route
+            path="/dashboard/employee/payslip"
+            element={
+              <ProtectedRoute>
+                <ViewPayslip />
               </ProtectedRoute>
             }
           />
