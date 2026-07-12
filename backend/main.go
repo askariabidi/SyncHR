@@ -35,6 +35,11 @@ func main() {
 	// Create router
 	router := mux.NewRouter()
 
+	// ============================================================================
+	// APPLY CORS MIDDLEWARE FIRST (MUST be before all other middleware)
+	// ============================================================================
+	router.Use(CORSMiddleware)
+
 	// Initialize handlers with database connection
 	authHandler := NewAuthHandler(db)
 	attendanceHandler := NewAttendanceHandler(db)
@@ -44,50 +49,42 @@ func main() {
 	// ============================================================================
 	// PUBLIC ROUTES (No Authentication Required)
 	// ============================================================================
-	router.HandleFunc("/api/auth/login", authHandler.Login).Methods("POST")
-	router.HandleFunc("/api/auth/register", authHandler.Register).Methods("POST")
+	router.HandleFunc("/api/auth/login", authHandler.Login).Methods("POST", "OPTIONS")
+	router.HandleFunc("/api/auth/register", authHandler.Register).Methods("POST", "OPTIONS")
+	router.HandleFunc("/api/health", HealthCheck).Methods("GET", "OPTIONS")
 
 	// ============================================================================
 	// PROTECTED ROUTES (Requires JWT Token)
 	// ============================================================================
-	// Apply JWT middleware to protected routes
-	router.Use(JWTMiddleware)
+	// Create a subrouter for protected routes and apply JWT middleware to it
+	protectedRoutes := router.PathPrefix("/api").Subrouter()
+	protectedRoutes.Use(JWTMiddleware)
 
 	// User routes
-	router.HandleFunc("/api/users/profile", authHandler.GetProfile).Methods("GET")
-	router.HandleFunc("/api/users/profile", authHandler.UpdateProfile).Methods("PUT")
+	protectedRoutes.HandleFunc("/users/profile", authHandler.GetProfile).Methods("GET", "OPTIONS")
+	protectedRoutes.HandleFunc("/users/profile", authHandler.UpdateProfile).Methods("PUT", "OPTIONS")
 
 	// Attendance routes
-	router.HandleFunc("/api/attendance/checkin", attendanceHandler.CheckIn).Methods("POST")
-	router.HandleFunc("/api/attendance/checkout", attendanceHandler.CheckOut).Methods("POST")
-	router.HandleFunc("/api/attendance/history", attendanceHandler.GetAttendanceHistory).Methods("GET")
+	protectedRoutes.HandleFunc("/attendance/checkin", attendanceHandler.CheckIn).Methods("POST", "OPTIONS")
+	protectedRoutes.HandleFunc("/attendance/checkout", attendanceHandler.CheckOut).Methods("POST", "OPTIONS")
+	protectedRoutes.HandleFunc("/attendance/history", attendanceHandler.GetAttendanceHistory).Methods("GET", "OPTIONS")
 
 	// Leave routes
-	router.HandleFunc("/api/leave/apply", leaveHandler.ApplyLeave).Methods("POST")
-	router.HandleFunc("/api/leave/balance", leaveHandler.GetLeaveBalance).Methods("GET")
-	router.HandleFunc("/api/leave/requests", leaveHandler.GetLeaveRequests).Methods("GET")
-	router.HandleFunc("/api/leave/approve/{id}", leaveHandler.ApproveLeave).Methods("PUT")
-	router.HandleFunc("/api/leave/reject/{id}", leaveHandler.RejectLeave).Methods("PUT")
+	protectedRoutes.HandleFunc("/leave/apply", leaveHandler.ApplyLeave).Methods("POST", "OPTIONS")
+	protectedRoutes.HandleFunc("/leave/balance", leaveHandler.GetLeaveBalance).Methods("GET", "OPTIONS")
+	protectedRoutes.HandleFunc("/leave/requests", leaveHandler.GetLeaveRequests).Methods("GET", "OPTIONS")
+	protectedRoutes.HandleFunc("/leave/approve/{id}", leaveHandler.ApproveLeave).Methods("PUT", "OPTIONS")
+	protectedRoutes.HandleFunc("/leave/reject/{id}", leaveHandler.RejectLeave).Methods("PUT", "OPTIONS")
 
 	// Payslip routes
-	router.HandleFunc("/api/payslip/list", payslipHandler.GetPayslips).Methods("GET")
-	router.HandleFunc("/api/payslip/{id}", payslipHandler.GetPayslipDetails).Methods("GET")
+	protectedRoutes.HandleFunc("/payslip/list", payslipHandler.GetPayslips).Methods("GET", "OPTIONS")
+	protectedRoutes.HandleFunc("/payslip/{id}", payslipHandler.GetPayslipDetails).Methods("GET", "OPTIONS")
 
 	// Holiday routes
-	router.HandleFunc("/api/holidays", NewHolidayHandler(db).GetHolidays).Methods("GET")
+	protectedRoutes.HandleFunc("/holidays", NewHolidayHandler(db).GetHolidays).Methods("GET", "OPTIONS")
 
 	// WebSocket for real-time notifications
 	router.HandleFunc("/ws/notifications", HandleWebSocket)
-
-	// Health check
-	router.HandleFunc("/api/health", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		fmt.Fprintf(w, `{"status":"ok","message":"SyncHR API is running"}`)
-	}).Methods("GET")
-
-	// Enable CORS for frontend communication
-	router.Use(CORSMiddleware)
 
 	// Start server
 	log.Printf("🚀 SyncHR Server starting on port %s", port)
@@ -97,18 +94,35 @@ func main() {
 	}
 }
 
+// ============================================================================
+// MIDDLEWARE: CORS
+// ============================================================================
 // CORSMiddleware enables CORS for cross-origin requests from React frontend
+// This MUST be applied first, before any other middleware
 func CORSMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Allow all origins (for development; restrict in production)
 		w.Header().Set("Access-Control-Allow-Origin", "*")
-		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+		w.Header().Set("Access-Control-Allow-Credentials", "true")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS, PATCH")
+		w.Header().Set("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept, Authorization")
+		w.Header().Set("Access-Control-Max-Age", "86400")
 
+		// Handle preflight requests (OPTIONS method)
 		if r.Method == http.MethodOptions {
-			w.WriteHeader(http.StatusOK)
+			w.WriteHeader(http.StatusNoContent)
 			return
 		}
 
 		next.ServeHTTP(w, r)
 	})
+}
+
+// ============================================================================
+// HEALTH CHECK ENDPOINT
+// ============================================================================
+func HealthCheck(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	fmt.Fprintf(w, `{"status":"ok","message":"SyncHR API is running"}`)
 }
