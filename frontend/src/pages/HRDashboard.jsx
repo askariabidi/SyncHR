@@ -14,12 +14,9 @@ export const HRDashboard = () => {
   const [approvalNotes, setApprovalNotes] = useState('');
   const [actionInProgress, setActionInProgress] = useState(false);
 
-  // Fetch leave requests on mount
+  // Fetch leave requests on refresh
   useEffect(() => {
     fetchLeaveRequests();
-    // Refresh every 5 seconds for real-time updates
-    const interval = setInterval(fetchLeaveRequests, 5000);
-    return () => clearInterval(interval);
   }, []);
 
   const fetchLeaveRequests = async () => {
@@ -220,8 +217,8 @@ export const HRDashboard = () => {
                 <div className="card-title">
                   <span className="status-icon">{getStatusIcon(request.status)}</span>
                   <div className="title-info">
-                    <h3>Employee ID: {request.user_id}</h3>
-                    <p>{getLeaveTypeName(request.leave_type_id)}</p>
+                    <h3>{request.employee_first_name} {request.employee_last_name}</h3>
+                    <p>👤 ID: {request.user_id} • 🏢 {request.employee_department}</p>
                   </div>
                 </div>
                 <span className="status-badge">{request.status.toUpperCase()}</span>
@@ -237,7 +234,7 @@ export const HRDashboard = () => {
                     <label>End Date</label>
                     <span>{request.end_date}</span>
                   </div>
-                  <div className="date-item">
+                  <div className="date-item days-item">
                     <label>Days</label>
                     <span className="days-badge">{request.number_of_days}</span>
                   </div>

@@ -343,13 +343,21 @@ func (h *LeaveHandler) GetLeaveRequests(w http.ResponseWriter, r *http.Request) 
 
 	// HR managers see all leave requests; employees see their own
 	if role == "hr_manager" {
-		query = `SELECT id, user_id, leave_type_id, start_date, end_date, number_of_days, reason, status, approved_by, approval_date, approval_notes, created_at, updated_at 
-		         FROM leave_request ORDER BY created_at DESC`
+		// query = `SELECT id, user_id, leave_type_id, start_date, end_date, number_of_days, reason, status, approved_by, approval_date, approval_notes, created_at, updated_at
+		//          FROM leave_request ORDER BY created_at DESC`
+		query = `SELECT lr.id, lr.user_id, lr.leave_type_id, lr.start_date, lr.end_date, lr.number_of_days, lr.reason, lr.status, lr.approved_by, lr.approval_date, lr.approval_notes, lr.created_at, lr.updated_at, u.first_name, u.last_name, u.department
+         FROM leave_request lr
+         JOIN users u ON lr.user_id = u.id
+         ORDER BY lr.created_at DESC`
 		log.Printf("📊 HR Query executing for all requests")
 		rows, err = h.db.Query(query)
 	} else {
-		query = `SELECT id, user_id, leave_type_id, start_date, end_date, number_of_days, reason, status, approved_by, approval_date, approval_notes, created_at, updated_at 
-		         FROM leave_request WHERE user_id = $1 ORDER BY created_at DESC`
+		// query = `SELECT id, user_id, leave_type_id, start_date, end_date, number_of_days, reason, status, approved_by, approval_date, approval_notes, created_at, updated_at
+		//          FROM leave_request WHERE user_id = $1 ORDER BY created_at DESC`
+		query = `SELECT lr.id, lr.user_id, lr.leave_type_id, lr.start_date, lr.end_date, lr.number_of_days, lr.reason, lr.status, lr.approved_by, lr.approval_date, lr.approval_notes, lr.created_at, lr.updated_at, u.first_name, u.last_name, u.department
+         FROM leave_request lr
+         JOIN users u ON lr.user_id = u.id
+         WHERE lr.user_id = $1 ORDER BY lr.created_at DESC`
 		log.Printf("📊 Employee Query executing for user_id: %d", userID)
 		rows, err = h.db.Query(query, userID)
 	}
@@ -369,7 +377,7 @@ func (h *LeaveHandler) GetLeaveRequests(w http.ResponseWriter, r *http.Request) 
 	leaveRequests := []LeaveRequest{}
 	for rows.Next() {
 		var lr LeaveRequest
-		err := rows.Scan(&lr.ID, &lr.UserID, &lr.LeaveTypeID, &lr.StartDate, &lr.EndDate, &lr.NumberOfDays, &lr.Reason, &lr.Status, &lr.ApprovedBy, &lr.ApprovalDate, &lr.ApprovalNotes, &lr.CreatedAt, &lr.UpdatedAt)
+		err := rows.Scan(&lr.ID, &lr.UserID, &lr.LeaveTypeID, &lr.StartDate, &lr.EndDate, &lr.NumberOfDays, &lr.Reason, &lr.Status, &lr.ApprovedBy, &lr.ApprovalDate, &lr.ApprovalNotes, &lr.CreatedAt, &lr.UpdatedAt, &lr.EmployeeFirstName, &lr.EmployeeLastName, &lr.EmployeeDepartment)
 		if err != nil {
 			log.Printf("❌ Scan error: %v", err)
 			continue

@@ -122,6 +122,10 @@ type LeaveRequest struct {
 	ApprovalNotes *string    `json:"approval_notes"`
 	CreatedAt     time.Time  `json:"created_at"`
 	UpdatedAt     time.Time  `json:"updated_at"`
+	// Additional fields from user join
+	EmployeeFirstName  *string `json:"employee_first_name"`
+	EmployeeLastName   *string `json:"employee_last_name"`
+	EmployeeDepartment *string `json:"employee_department"`
 }
 
 // ApplyLeaveRequest represents the request to apply for leave
