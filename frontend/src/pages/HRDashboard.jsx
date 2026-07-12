@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { leaveAPI } from '../services/api';
 import '../styles/HRDashboard.css';
+import { attendanceAPI } from '../services/api';
 
 export const HRDashboard = () => {
   const { user, logout } = useAuth();
@@ -13,10 +14,16 @@ export const HRDashboard = () => {
   const [selectedRequest, setSelectedRequest] = useState(null);
   const [approvalNotes, setApprovalNotes] = useState('');
   const [actionInProgress, setActionInProgress] = useState(false);
+  // for attendance tracking of all employees
+  const [attendanceRecords, setAttendanceRecords] = useState([]);
+  const [attendanceLoading, setAttendanceLoading] = useState(false);
 
   // Fetch leave requests on refresh
   useEffect(() => {
     fetchLeaveRequests();
+    fetchAttendanceRecords();
+    // const interval = setInterval(fetchLeaveRequests, 5000);
+    // return () => clearInterval(interval);
   }, []);
 
   const fetchLeaveRequests = async () => {
@@ -121,6 +128,30 @@ export const HRDashboard = () => {
       default:
         return 'Leave';
     }
+  };
+
+  const fetchAttendanceRecords = async () => {
+    try {
+      setAttendanceLoading(true);
+      const response = await attendanceAPI.getAttendanceRecords();
+      setAttendanceRecords(response.data.data.attendance_records || []);
+    } catch (err) {
+      console.error('Failed to fetch attendance records:', err);
+    } finally {
+      setAttendanceLoading(false);
+    }
+  };
+
+  const getEmployeeName = (userId) => {
+    // Map user ID to name (you can enhance this with actual data)
+    const employeeNames = {
+      3: 'John Doe',
+      5: 'Alice Johnson',
+      6: 'Bob Wilson',
+      7: 'Charlie Brown',
+      8: 'Diana Davis',
+    };
+    return employeeNames[userId] || `Employee ${userId}`;
   };
 
   return (
@@ -280,6 +311,64 @@ export const HRDashboard = () => {
           <p>📭 No leave requests found</p>
         </div>
       ) : null}
+
+      {/* Attendance Section */}
+      <div className="attendance-section">
+        <h2>📊 Monthly Attendance Report</h2>
+
+        {attendanceLoading ? (
+          <div className="loading">Loading attendance records...</div>
+        ) : attendanceRecords.length > 0 ? (
+          <div className="attendance-table-container">
+            <table className="attendance-table">
+              <thead>
+                <tr>
+                  <th>Employee ID</th>
+                  <th>Employee Name</th>
+                  <th>Date</th>
+                  <th>Check In</th>
+                  <th>Check Out</th>
+                  <th>Duration</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {attendanceRecords.map((record, index) => {
+                  const checkIn = record.check_in_time ? new Date(record.check_in_time) : null;
+                  const checkOut = record.check_out_time ? new Date(record.check_out_time) : null;
+                  let duration = '-';
+
+                  if (checkIn && checkOut) {
+                    const hours = ((checkOut - checkIn) / (1000 * 60 * 60)).toFixed(2);
+                    duration = `${hours}h`;
+                  }
+
+                  return (
+                    <tr key={index}>
+                      <td>{record.user_id}</td>
+                      <td className="employee-name">{getEmployeeName(record.user_id)}</td>
+                      <td>{record.date}</td>
+                      <td>{checkIn ? checkIn.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : '-'}</td>
+                      <td>{checkOut ? checkOut.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : '-'}</td>
+                      <td className="duration-cell">{duration}</td>
+                      <td>
+                        <span className={`status-badge attendance-${record.status}`}>
+                          {record.status === 'checked_in' && '🕐 Checked In'}
+                          {record.status === 'checked_out' && '✅ Completed'}
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div className="empty-state">
+            <p>📭 No attendance records found</p>
+          </div>
+        )}
+      </div>
 
       {/* Modal for Approval/Rejection */}
       {selectedRequest && (

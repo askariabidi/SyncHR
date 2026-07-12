@@ -41,13 +41,13 @@
 // export const authAPI = {
 //   login: (email, password) =>
 //     apiClient.post('/auth/login', { email, password }),
-  
+
 //   register: (userData) =>
 //     apiClient.post('/auth/register', userData),
-  
+
 //   getProfile: () =>
 //     apiClient.get('/users/profile'),
-  
+
 //   updateProfile: (userData) =>
 //     apiClient.put('/users/profile', userData),
 // };
@@ -59,10 +59,10 @@
 // export const attendanceAPI = {
 //   checkIn: (timestamp) =>
 //     apiClient.post('/attendance/checkin', { timestamp }),
-  
+
 //   checkOut: (timestamp) =>
 //     apiClient.post('/attendance/checkout', { timestamp }),
-  
+
 //   getHistory: (month, year) =>
 //     apiClient.get(`/attendance/history?month=${month}&year=${year}`),
 // };
@@ -74,16 +74,16 @@
 // export const leaveAPI = {
 //   applyLeave: (leaveData) =>
 //     apiClient.post('/leave/apply', leaveData),
-  
+
 //   getBalance: () =>
 //     apiClient.get('/leave/balance'),
-  
+
 //   getRequests: () =>
 //     apiClient.get('/leave/requests'),
-  
+
 //   approveLeave: (leaveId, notes) =>
 //     apiClient.put(`/leave/approve/${leaveId}`, { approval_notes: notes }),
-  
+
 //   rejectLeave: (leaveId, notes) =>
 //     apiClient.put(`/leave/reject/${leaveId}`, { approval_notes: notes }),
 // };
@@ -95,7 +95,7 @@
 // export const payslipAPI = {
 //   getPayslips: () =>
 //     apiClient.get('/payslip/list'),
-  
+
 //   getPayslipDetails: (payslipId) =>
 //     apiClient.get(`/payslip/${payslipId}`),
 // };
@@ -161,13 +161,13 @@ apiClient.interceptors.response.use(
 export const authAPI = {
   login: (email, password) =>
     apiClient.post('/auth/login', { email, password }),
-  
+
   register: (userData) =>
     apiClient.post('/auth/register', userData),
-  
+
   getProfile: () =>
     apiClient.get('/users/profile'),
-  
+
   updateProfile: (userData) =>
     apiClient.put('/users/profile', userData),
 };
@@ -179,15 +179,18 @@ export const authAPI = {
 export const attendanceAPI = {
   checkIn: () =>
     apiClient.post('/attendance/checkin', {}),
-  
+
   checkOut: () =>
     apiClient.post('/attendance/checkout', {}),
-  
+
   getAttendanceHistory: () =>
     apiClient.get('/attendance/history'),
-  
+
   getHistory: (month, year) =>
     apiClient.get(`/attendance/history?month=${month}&year=${year}`),
+
+  getAttendanceRecords: () =>
+    apiClient.get('/attendance/records'),
 };
 
 // ============================================================================
@@ -197,16 +200,16 @@ export const attendanceAPI = {
 export const leaveAPI = {
   applyLeave: (leaveData) =>
     apiClient.post('/leave/apply', leaveData),
-  
+
   getBalance: () =>
     apiClient.get('/leave/balance'),
-  
+
   getRequests: () =>
     apiClient.get('/leave/requests'),
-  
+
   approveLeave: (leaveId, notes) =>
     apiClient.put(`/leave/approve/${leaveId}`, { approval_notes: notes }),
-  
+
   rejectLeave: (leaveId, notes) =>
     apiClient.put(`/leave/reject/${leaveId}`, { approval_notes: notes }),
 };
@@ -218,7 +221,7 @@ export const leaveAPI = {
 export const payslipAPI = {
   getPayslips: () =>
     apiClient.get('/payslip/list'),
-  
+
   getPayslipDetails: (payslipId) =>
     apiClient.get(`/payslip/${payslipId}`),
 };

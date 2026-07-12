@@ -529,3 +529,90 @@ func (h *AttendanceHandler) GetAttendanceHistory(w http.ResponseWriter, r *http.
 		},
 	})
 }
+
+// GetAllAttendanceRecords retrieves all employees' attendance for current month (HR only)
+func (h *AttendanceHandler) GetAllAttendanceRecords(w http.ResponseWriter, r *http.Request) {
+	log.Printf("🚨 GetAllAttendanceRecords CALLED!")
+	w.Header().Set("Content-Type", "application/json")
+
+	// Extract role from context
+	role, _ := r.Context().Value("role").(string)
+
+	// Only HR managers can access this
+	if role != "hr_manager" {
+		w.WriteHeader(http.StatusForbidden)
+		json.NewEncoder(w).Encode(ErrorResponse{
+			Error:   "forbidden",
+			Message: "Only HR managers can access attendance records",
+			Code:    403,
+		})
+		return
+	}
+
+	log.Printf("📊 GetAllAttendanceRecords - Fetching for HR manager")
+
+	// Get current month and year
+	now := time.Now()
+	startDate := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, now.Location())
+	endDate := time.Date(now.Year(), now.Month()+1, 1, 0, 0, 0, 0, now.Location()).AddDate(0, 0, -1)
+
+	log.Printf("📊 Date range: %s to %s", startDate.Format("2006-01-02"), endDate.Format("2006-01-02"))
+
+	// Query all attendance records for current month
+	rows, err := h.db.Query(
+		`SELECT id, user_id, check_in_time, check_out_time, date, status, created_at, updated_at 
+		 FROM attendance 
+		 WHERE date >= $1 AND date <= $2
+		 ORDER BY date DESC, user_id ASC`,
+		startDate.Format("2006-01-02"), endDate.Format("2006-01-02"),
+	)
+
+	if err != nil {
+		log.Printf("❌ Database error: %v", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(ErrorResponse{
+			Error:   "database_error",
+			Message: "Failed to retrieve attendance records",
+			Code:    500,
+		})
+		return
+	}
+	defer rows.Close()
+
+	var attendanceRecords []map[string]interface{}
+	for rows.Next() {
+		var id, userID int
+		var checkInTime, checkOutTime sql.NullTime
+		var date string
+		var status string
+		var createdAt, updatedAt time.Time
+
+		err := rows.Scan(&id, &userID, &checkInTime, &checkOutTime, &date, &status, &createdAt, &updatedAt)
+		if err != nil {
+			log.Printf("❌ Scan error: %v", err)
+			continue
+		}
+
+		record := map[string]interface{}{
+			"id":             id,
+			"user_id":        userID,
+			"check_in_time":  checkInTime.Time,
+			"check_out_time": checkOutTime.Time,
+			"date":           date,
+			"status":         status,
+			"created_at":     createdAt,
+			"updated_at":     updatedAt,
+		}
+		attendanceRecords = append(attendanceRecords, record)
+	}
+
+	log.Printf("✅ Found %d attendance records for current month", len(attendanceRecords))
+
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(SuccessResponse{
+		Message: "Attendance records retrieved successfully",
+		Data: map[string]interface{}{
+			"attendance_records": attendanceRecords,
+		},
+	})
+}

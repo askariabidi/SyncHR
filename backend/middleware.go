@@ -15,6 +15,17 @@ import (
 // JWTMiddleware validates JWT tokens in request headers
 func JWTMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Set CORS headers first
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS, PATCH")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, Accept")
+
+		// Handle OPTIONS requests (preflight)
+		if r.Method == http.MethodOptions {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+
 		// Skip middleware for health check endpoint
 		if r.URL.Path == "/api/health" {
 			next.ServeHTTP(w, r)
@@ -79,6 +90,8 @@ func JWTMiddleware(next http.Handler) http.Handler {
 		userID := int(claims["user_id"].(float64))
 		email := claims["email"].(string)
 		role := claims["role"].(string)
+
+		// Debug logging
 		log.Printf("🔐 JWT Middleware - Extracted UserID: %d, Email: %s, Role: %s", userID, email, role)
 
 		ctx := context.WithValue(r.Context(), "user_id", userID)
