@@ -78,6 +78,9 @@ export const EmployeeDashboard = () => {
         <button className="action-btn leave" onClick={() => window.location.href = '/dashboard/employee/leave'}>
           📋 Apply Leave
         </button>
+        <button className="action-btn requests" onClick={() => window.location.href = '/dashboard/employee/my-requests'}>
+          📑 My Requests
+        </button>
         <button className="action-btn payslip" onClick={() => window.location.href = '/dashboard/employee/payslip'}>
           📄 View Payslip
         </button>

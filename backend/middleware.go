@@ -79,6 +79,7 @@ func JWTMiddleware(next http.Handler) http.Handler {
 		userID := int(claims["user_id"].(float64))
 		email := claims["email"].(string)
 		role := claims["role"].(string)
+		log.Printf("🔐 JWT Middleware - Extracted UserID: %d, Email: %s, Role: %s", userID, email, role)
 
 		ctx := context.WithValue(r.Context(), "user_id", userID)
 		ctx = context.WithValue(ctx, "email", email)
@@ -91,9 +92,9 @@ func JWTMiddleware(next http.Handler) http.Handler {
 
 // WebSocket clients and hub
 var (
-	clients = make(map[*websocket.Conn]int) // Map of WebSocket connections to user IDs
+	clients   = make(map[*websocket.Conn]int) // Map of WebSocket connections to user IDs
 	broadcast = make(chan interface{})
-	upgrader = websocket.Upgrader{
+	upgrader  = websocket.Upgrader{
 		CheckOrigin: func(r *http.Request) bool {
 			return true // Allow all origins for development
 		},

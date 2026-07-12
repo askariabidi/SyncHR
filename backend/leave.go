@@ -3,6 +3,7 @@ package main
 import (
 	"database/sql"
 	"encoding/json"
+	"log"
 	"net/http"
 	"strconv"
 	"time"
@@ -95,17 +96,17 @@ func (h *LeaveHandler) ApplyLeave(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Send notification to HR managers via WebSocket
-	notification := Notification{
-		UserID:  userID,
-		Title:   "New Leave Request",
-		Message: "A new leave request has been submitted",
-		Type:    "leave_request",
-		RelatedEntityID: &leaveID,
-		IsRead:  false,
-		CreatedAt: time.Now(),
-	}
-	BroadcastNotification(notification)
+	// // Send notification to HR managers via WebSocket
+	// notification := Notification{
+	// 	UserID:  userID,
+	// 	Title:   "New Leave Request",
+	// 	Message: "A new leave request has been submitted",
+	// 	Type:    "leave_request",
+	// 	RelatedEntityID: &leaveID,
+	// 	IsRead:  false,
+	// 	CreatedAt: time.Now(),
+	// }
+	// BroadcastNotification(notification)
 
 	w.WriteHeader(http.StatusCreated)
 	json.NewEncoder(w).Encode(SuccessResponse{
@@ -181,6 +182,141 @@ func (h *LeaveHandler) GetLeaveBalance(w http.ResponseWriter, r *http.Request) {
 }
 
 // GetLeaveRequests retrieves leave requests for authenticated user
+// func (h *LeaveHandler) GetLeaveRequests(w http.ResponseWriter, r *http.Request) {
+// 	w.Header().Set("Content-Type", "application/json")
+
+// 	// Extract user ID and role from context
+// 	userID, ok := r.Context().Value("user_id").(int)
+// 	if !ok {
+// 		w.WriteHeader(http.StatusUnauthorized)
+// 		json.NewEncoder(w).Encode(ErrorResponse{
+// 			Error:   "unauthorized",
+// 			Message: "User not authenticated",
+// 			Code:    401,
+// 		})
+// 		return
+// 	}
+
+// 	role, _ := r.Context().Value("role").(string)
+
+// 	var query string
+// 	var queryParam interface{}
+
+// 	// HR managers see all leave requests; employees see their own
+// 	if role == "hr_manager" {
+// 		query = `SELECT id, user_id, leave_type_id, start_date, end_date, number_of_days, reason, status, approved_by, approval_date, approval_notes, created_at, updated_at
+// 		         FROM leave_request ORDER BY created_at DESC`
+// 		queryParam = nil
+// 	} else {
+// 		query = `SELECT id, user_id, leave_type_id, start_date, end_date, number_of_days, reason, status, approved_by, approval_date, approval_notes, created_at, updated_at
+// 		         FROM leave_request WHERE user_id = $1 ORDER BY created_at DESC`
+// 		queryParam = userID
+// 	}
+
+// 	var rows *sql.Rows
+// 	var err error
+
+// 	if queryParam == nil {
+// 		rows, err = h.db.Query(query)
+// 	} else {
+// 		rows, err = h.db.Query(query, queryParam)
+// 	}
+
+// 	if err != nil {
+// 		w.WriteHeader(http.StatusInternalServerError)
+// 		json.NewEncoder(w).Encode(ErrorResponse{
+// 			Error:   "database_error",
+// 			Message: "Failed to retrieve leave requests",
+// 			Code:    500,
+// 		})
+// 		return
+// 	}
+// 	defer rows.Close()
+
+// 	var leaveRequests []LeaveRequest = []LeaveRequest{}
+// 	for rows.Next() {
+// 		var lr LeaveRequest
+// 		err := rows.Scan(&lr.ID, &lr.UserID, &lr.LeaveTypeID, &lr.StartDate, &lr.EndDate, &lr.NumberOfDays, &lr.Reason, &lr.Status, &lr.ApprovedBy, &lr.ApprovalDate, &lr.ApprovalNotes, &lr.CreatedAt, &lr.UpdatedAt)
+// 		if err != nil {
+// 			continue
+// 		}
+// 		leaveRequests = append(leaveRequests, lr)
+// 	}
+
+// 	w.WriteHeader(http.StatusOK)
+// 	json.NewEncoder(w).Encode(SuccessResponse{
+// 		Message: "Leave requests retrieved successfully",
+// 		Data: map[string]interface{}{
+// 			"leave_requests": leaveRequests,
+// 		},
+// 	})
+// }
+
+// GetLeaveRequests retrieves leave requests for authenticated user
+// func (h *LeaveHandler) GetLeaveRequests(w http.ResponseWriter, r *http.Request) {
+// 	w.Header().Set("Content-Type", "application/json")
+
+// 	// Extract user ID and role from context
+// 	userID, ok := r.Context().Value("user_id").(int)
+// 	if !ok {
+// 		w.WriteHeader(http.StatusUnauthorized)
+// 		json.NewEncoder(w).Encode(ErrorResponse{
+// 			Error:   "unauthorized",
+// 			Message: "User not authenticated",
+// 			Code:    401,
+
+// 		})
+// 		return
+// 	}
+
+// 	role, _ := r.Context().Value("role").(string)
+
+// 	var query string
+// 	var rows *sql.Rows
+// 	var err error
+
+// 	// HR managers see all leave requests; employees see their own
+// 	if role == "hr_manager" {
+// 		query = `SELECT id, user_id, leave_type_id, start_date, end_date, number_of_days, reason, status, approved_by, approval_date, approval_notes, created_at, updated_at
+// 		         FROM leave_request ORDER BY created_at DESC`
+// 		rows, err = h.db.Query(query)
+// 	} else {
+// 		query = `SELECT id, user_id, leave_type_id, start_date, end_date, number_of_days, reason, status, approved_by, approval_date, approval_notes, created_at, updated_at
+// 		         FROM leave_request WHERE user_id = $1 ORDER BY created_at DESC`
+// 		rows, err = h.db.Query(query, userID)
+// 	}
+
+// 	if err != nil {
+// 		w.WriteHeader(http.StatusInternalServerError)
+// 		json.NewEncoder(w).Encode(ErrorResponse{
+// 			Error:   "database_error",
+// 			Message: "Failed to retrieve leave requests",
+// 			Code:    500,
+// 		})
+// 		return
+// 	}
+// 	defer rows.Close()
+
+// 	leaveRequests := []LeaveRequest{}
+// 	for rows.Next() {
+// 		var lr LeaveRequest
+// 		err := rows.Scan(&lr.ID, &lr.UserID, &lr.LeaveTypeID, &lr.StartDate, &lr.EndDate, &lr.NumberOfDays, &lr.Reason, &lr.Status, &lr.ApprovedBy, &lr.ApprovalDate, &lr.ApprovalNotes, &lr.CreatedAt, &lr.UpdatedAt)
+// 		if err != nil {
+// 			continue
+// 		}
+// 		leaveRequests = append(leaveRequests, lr)
+// 	}
+
+// 	w.WriteHeader(http.StatusOK)
+// 	json.NewEncoder(w).Encode(SuccessResponse{
+// 		Message: "Leave requests retrieved successfully",
+// 		Data: map[string]interface{}{
+// 			"leave_requests": leaveRequests,
+// 		},
+// 	})
+// }
+
+// GetLeaveRequests retrieves leave requests for authenticated user
 func (h *LeaveHandler) GetLeaveRequests(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
@@ -198,30 +334,28 @@ func (h *LeaveHandler) GetLeaveRequests(w http.ResponseWriter, r *http.Request) 
 
 	role, _ := r.Context().Value("role").(string)
 
+	// Debug logging
+	log.Printf("🔍 GetLeaveRequests - UserID: %d, Role: %s", userID, role)
+
 	var query string
-	var queryParam interface{}
+	var rows *sql.Rows
+	var err error
 
 	// HR managers see all leave requests; employees see their own
 	if role == "hr_manager" {
 		query = `SELECT id, user_id, leave_type_id, start_date, end_date, number_of_days, reason, status, approved_by, approval_date, approval_notes, created_at, updated_at 
 		         FROM leave_request ORDER BY created_at DESC`
-		queryParam = nil
+		log.Printf("📊 HR Query executing for all requests")
+		rows, err = h.db.Query(query)
 	} else {
 		query = `SELECT id, user_id, leave_type_id, start_date, end_date, number_of_days, reason, status, approved_by, approval_date, approval_notes, created_at, updated_at 
 		         FROM leave_request WHERE user_id = $1 ORDER BY created_at DESC`
-		queryParam = userID
-	}
-
-	var rows *sql.Rows
-	var err error
-
-	if queryParam == nil {
-		rows, err = h.db.Query(query)
-	} else {
-		rows, err = h.db.Query(query, queryParam)
+		log.Printf("📊 Employee Query executing for user_id: %d", userID)
+		rows, err = h.db.Query(query, userID)
 	}
 
 	if err != nil {
+		log.Printf("❌ Database error: %v", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(ErrorResponse{
 			Error:   "database_error",
@@ -232,15 +366,18 @@ func (h *LeaveHandler) GetLeaveRequests(w http.ResponseWriter, r *http.Request) 
 	}
 	defer rows.Close()
 
-	var leaveRequests []LeaveRequest
+	leaveRequests := []LeaveRequest{}
 	for rows.Next() {
 		var lr LeaveRequest
 		err := rows.Scan(&lr.ID, &lr.UserID, &lr.LeaveTypeID, &lr.StartDate, &lr.EndDate, &lr.NumberOfDays, &lr.Reason, &lr.Status, &lr.ApprovedBy, &lr.ApprovalDate, &lr.ApprovalNotes, &lr.CreatedAt, &lr.UpdatedAt)
 		if err != nil {
+			log.Printf("❌ Scan error: %v", err)
 			continue
 		}
 		leaveRequests = append(leaveRequests, lr)
 	}
+
+	log.Printf("✅ Found %d leave requests", len(leaveRequests))
 
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(SuccessResponse{
@@ -349,21 +486,21 @@ func (h *LeaveHandler) ApproveLeave(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Send notification to employee via WebSocket
-	notification := Notification{
-		UserID:  lr.UserID,
-		Title:   "Leave Approved",
-		Message: "Your leave request has been approved",
-		Type:    "leave_approved",
-		RelatedEntityID: &leaveID,
-		IsRead:  false,
-		CreatedAt: time.Now(),
-	}
-	SendNotificationToUser(lr.UserID, notification)
+	// notification := Notification{
+	// 	UserID:          lr.UserID,
+	// 	Title:           "Leave Approved",
+	// 	Message:         "Your leave request has been approved",
+	// 	Type:            "leave_approved",
+	// 	RelatedEntityID: &leaveID,
+	// 	IsRead:          false,
+	// 	CreatedAt:       time.Now(),
+	// }
+	// SendNotificationToUser(lr.UserID, notification)
 
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(SuccessResponse{
-		Message: "Leave request approved successfully",
-	})
+	// w.WriteHeader(http.StatusOK)
+	// json.NewEncoder(w).Encode(SuccessResponse{
+	// 	Message: "Leave request approved successfully",
+	// })
 }
 
 // RejectLeave handles leave request rejection (HR only)
@@ -448,16 +585,16 @@ func (h *LeaveHandler) RejectLeave(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Send notification to employee via WebSocket
-	notification := Notification{
-		UserID:  employeeUserID,
-		Title:   "Leave Rejected",
-		Message: "Your leave request has been rejected",
-		Type:    "leave_rejected",
-		RelatedEntityID: &leaveID,
-		IsRead:  false,
-		CreatedAt: time.Now(),
-	}
-	SendNotificationToUser(employeeUserID, notification)
+	// notification := Notification{
+	// 	UserID:          employeeUserID,
+	// 	Title:           "Leave Rejected",
+	// 	Message:         "Your leave request has been rejected",
+	// 	Type:            "leave_rejected",
+	// 	RelatedEntityID: &leaveID,
+	// 	IsRead:          false,
+	// 	CreatedAt:       time.Now(),
+	// }
+	// SendNotificationToUser(employeeUserID, notification)
 
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(SuccessResponse{

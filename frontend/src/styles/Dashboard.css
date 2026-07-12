@@ -87,6 +87,10 @@
   background: linear-gradient(135deg, #3498db 0%, #2980b9 100%);
 }
 
+.action-btn.requests {
+  background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+}
+
 .action-btn.payslip {
   background: linear-gradient(135deg, #9b59b6 0%, #8e44ad 100%);
 }

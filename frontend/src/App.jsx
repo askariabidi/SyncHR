@@ -5,6 +5,7 @@ import { ProtectedRoute } from './components/ProtectedRoute';
 import Login from './pages/Login';
 import EmployeeDashboard from './pages/EmployeeDashboard';
 import ApplyLeave from './pages/ApplyLeave';
+import MyLeaveRequests from './pages/MyLeaveRequests';
 import './App.css';
 
 function App() {
@@ -41,6 +42,16 @@ function App() {
             element={
               <ProtectedRoute>
                 <EmployeeDashboard />
+              </ProtectedRoute>
+            }
+          />
+
+          {/* Protected Routes - My Leave Requests */}
+          <Route
+            path="/dashboard/employee/my-requests"
+            element={
+              <ProtectedRoute>
+                <MyLeaveRequests />
               </ProtectedRoute>
             }
           />
