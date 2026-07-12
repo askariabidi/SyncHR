@@ -6,6 +6,7 @@ import Login from './pages/Login';
 import EmployeeDashboard from './pages/EmployeeDashboard';
 import ApplyLeave from './pages/ApplyLeave';
 import MyLeaveRequests from './pages/MyLeaveRequests';
+import HRDashboard from './pages/HRDashboard';
 import './App.css';
 
 function App() {
@@ -36,12 +37,12 @@ function App() {
             }
           />
 
-          {/* Protected Routes - HR Manager (using same dashboard for now) */}
+          {/* Protected Routes - HR Manager Dashboard */}
           <Route
             path="/dashboard/hr"
             element={
               <ProtectedRoute>
-                <EmployeeDashboard />
+                <HRDashboard />
               </ProtectedRoute>
             }
           />
