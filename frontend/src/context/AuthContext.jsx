@@ -22,15 +22,38 @@ export const AuthProvider = ({ children }) => {
     setLoading(false);
   }, []);
 
+  // Keep this tab's auth state in sync when another tab logs in/out or
+  // switches accounts. The browser only fires 'storage' in OTHER tabs, which
+  // is exactly the case that matters: without this, a tab left open on one
+  // account keeps rendering as that account (and its role-gated UI) even
+  // after localStorage's token has moved on to a different account, so every
+  // request it makes silently carries the new account's token instead.
+  useEffect(() => {
+    const handleStorageChange = (event) => {
+      if (event.key !== 'token' && event.key !== 'user') return;
+
+      const savedToken = localStorage.getItem('token');
+      const savedUser = localStorage.getItem('user');
+
+      if (savedToken && savedUser) {
+        setToken(savedToken);
+        setUser(JSON.parse(savedUser));
+      } else {
+        setToken(null);
+        setUser(null);
+      }
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, []);
+
   // Login function
   const login = (token, userData) => {
-   try {setToken(token);
+    setToken(token);
     setUser(userData);
     localStorage.setItem('token', token);
-    localStorage.setItem('user', JSON.stringify(userData));}
-    catch{
-        console.log("ggggggggggggggggggggggggg");
-    }
+    localStorage.setItem('user', JSON.stringify(userData));
   };
 
   // Logout function

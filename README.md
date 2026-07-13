@@ -55,25 +55,48 @@ frontend/   React SPA (Vite)
 db/schema.sql   full Postgres schema (tables, indexes)
 
 docs/TEST_CASES.md   full test case matrix
+
+docker-compose.yml, backend/Dockerfile, frontend/Dockerfile   containerized deployment
 ```
 
 ## Getting Started
 
-### Prerequisites
+Two ways to run SyncHR: one command with Docker (recommended — no local Go/Node/Postgres setup needed), or running each piece natively for development.
 
-- Go (see `backend/go.mod` for the toolchain version)
-- Node.js 18+
-- PostgreSQL running locally (or reachable) with a database created for this project
+### Option A: Docker (recommended)
 
-### 1. Database
+**Prerequisites:** Docker + Docker Compose only.
 
-Apply the schema to your Postgres database:
+```bash
+docker compose up --build
+```
+
+That's it. This single command:
+1. Builds the Go backend into a small static binary in an Alpine image.
+2. Builds the React frontend and serves it via nginx (with the SPA fallback route configured so client-side routing works).
+3. Starts a PostgreSQL container and **automatically applies `db/schema.sql`** on first boot (mounted as a Postgres init script — no manual `psql` step).
+4. Wires the three services together on a private Docker network, waiting for Postgres to report healthy before starting the backend.
+
+Once it's up:
+- Frontend: **http://localhost:5173**
+- Backend API: **http://localhost:8080/api**
+- Postgres: `localhost:5432` (credentials from `.env.example` / `docker-compose.yml` defaults)
+
+To use different credentials/secrets, copy `.env.example` to `.env` at the repo root and edit it — `docker-compose.yml` reads from it automatically. `docker compose down -v` tears everything down including the database volume; drop `-v` to keep your data across restarts.
+
+This was verified end-to-end while writing this README: a completely fresh `docker compose up --build` (empty Postgres volume) correctly auto-applied the schema, and registration + login worked immediately through the containerized stack.
+
+### Option B: Manual setup (native dev)
+
+**Prerequisites:** Go (see `backend/go.mod` for the toolchain version), Node.js 18+, a reachable PostgreSQL instance.
+
+**1. Database** — apply the schema:
 
 ```bash
 psql -U <your_user> -d <your_db> -f db/schema.sql
 ```
 
-### 2. Backend
+**2. Backend:**
 
 ```bash
 cd backend
@@ -83,7 +106,7 @@ go run .
 
 The API starts on `http://localhost:8080` (override with `PORT` in `.env`).
 
-### 3. Frontend
+**3. Frontend:**
 
 ```bash
 cd frontend
@@ -91,7 +114,7 @@ npm install
 npm run dev
 ```
 
-The app starts on `http://localhost:5173` and talks to the backend at the hardcoded base URL in `src/services/api.js`.
+The app starts on `http://localhost:5173`. It calls the backend at `VITE_API_URL` if set at build time, otherwise falls back to `http://localhost:8080/api` (see `src/services/api.js`).
 
 ### Creating Accounts
 

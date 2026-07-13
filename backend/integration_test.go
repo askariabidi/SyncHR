@@ -79,6 +79,13 @@ func registerAndLogin(t *testing.T, role string) LoginResponse {
 		t.Fatalf("registration failed: status %d, body %s", rec.Code, rec.Body.String())
 	}
 
+	// Registered by email, before we even attempt to log in - so a failing
+	// login (or any other failure below) still cleans up the row instead of
+	// leaking a test account into the database forever.
+	t.Cleanup(func() {
+		testDB.Exec("DELETE FROM users WHERE email = $1", email)
+	})
+
 	var loginResp LoginResponse
 	rec = apiRequest(t, http.MethodPost, "/api/auth/login", "", map[string]string{
 		"email":    email,
@@ -87,10 +94,6 @@ func registerAndLogin(t *testing.T, role string) LoginResponse {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("login failed: status %d, body %s", rec.Code, rec.Body.String())
 	}
-
-	t.Cleanup(func() {
-		testDB.Exec("DELETE FROM users WHERE id = $1", loginResp.User.ID)
-	})
 
 	return loginResp
 }

@@ -1,7 +1,9 @@
 import axios from 'axios';
 
-// API Base URL - pointing to Go backend
-export const API_BASE_URL = 'http://localhost:8080/api';
+// API Base URL - pointing to Go backend. Overridable at build time via
+// VITE_API_URL (e.g. when deployed, the frontend isn't served from the same
+// host as a local `go run .`), falling back to local dev's default.
+export const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080/api';
 
 // Create axios instance with base URL
 const apiClient = axios.create({
