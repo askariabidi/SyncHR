@@ -12,6 +12,27 @@ import (
 	"github.com/gorilla/websocket"
 )
 
+// parseJWT validates a raw JWT string and returns its claims. Shared by
+// JWTMiddleware (Authorization header) and HandleWebSocket (query param,
+// since browsers can't set custom headers during a WebSocket handshake).
+func parseJWT(tokenString string) (jwt.MapClaims, error) {
+	claims := jwt.MapClaims{}
+	token, err := jwt.ParseWithClaims(tokenString, claims, func(token *jwt.Token) (interface{}, error) {
+		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, jwt.ErrSignatureInvalid
+		}
+		jwtSecret := "default_secret_key_change_this"
+		if os.Getenv("JWT_SECRET") != "" {
+			jwtSecret = os.Getenv("JWT_SECRET")
+		}
+		return []byte(jwtSecret), nil
+	})
+	if err != nil || !token.Valid {
+		return nil, jwt.ErrSignatureInvalid
+	}
+	return claims, nil
+}
+
 // JWTMiddleware validates JWT tokens in request headers
 func JWTMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -58,24 +79,8 @@ func JWTMiddleware(next http.Handler) http.Handler {
 			return
 		}
 
-		tokenString := parts[1]
-
-		// Parse and validate token
-		claims := jwt.MapClaims{}
-		token, err := jwt.ParseWithClaims(tokenString, claims, func(token *jwt.Token) (interface{}, error) {
-			// Verify signing method
-			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-				return nil, jwt.ErrSignatureInvalid
-			}
-			// Get JWT secret from environment
-			jwtSecret := "default_secret_key_change_this"
-			if os.Getenv("JWT_SECRET") != "" {
-				jwtSecret = os.Getenv("JWT_SECRET")
-			}
-			return []byte(jwtSecret), nil
-		})
-
-		if err != nil || !token.Valid {
+		claims, err := parseJWT(parts[1])
+		if err != nil {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusUnauthorized)
 			json.NewEncoder(w).Encode(ErrorResponse{
@@ -103,109 +108,138 @@ func JWTMiddleware(next http.Handler) http.Handler {
 	})
 }
 
-// WebSocket clients and hub
-var (
-	clients   = make(map[*websocket.Conn]int) // Map of WebSocket connections to user IDs
-	broadcast = make(chan interface{})
-	upgrader  = websocket.Upgrader{
-		CheckOrigin: func(r *http.Request) bool {
-			return true // Allow all origins for development
-		},
-	}
-)
+// ============================================================================
+// WEBSOCKET HUB
+// ============================================================================
+//
+// Real-time notification delivery using Go's "actor" pattern: a single
+// goroutine (Hub.run) owns the connected-client registry and is the ONLY
+// thing that ever reads or mutates it. Every other goroutine (one per
+// connected client, plus every HTTP handler that wants to push a
+// notification) talks to it exclusively through channels instead of a
+// mutex - this is what makes registration/broadcast/direct-send safe to
+// call concurrently from many goroutines at once.
 
-// HandleWebSocket handles WebSocket connections for real-time notifications
+type wsClient struct {
+	conn   *websocket.Conn
+	userID int
+	role   string
+}
+
+type wsMessage struct {
+	Type    string      `json:"type"`
+	Payload interface{} `json:"payload"`
+}
+
+// wsTarget describes who a message should be delivered to: a specific
+// user (userID > 0) or everyone currently connected with a given role.
+type wsTarget struct {
+	userID  int
+	role    string
+	message wsMessage
+}
+
+type wsHub struct {
+	clients    map[*wsClient]bool
+	register   chan *wsClient
+	unregister chan *wsClient
+	direct     chan wsTarget
+}
+
+var hub = &wsHub{
+	clients:    make(map[*wsClient]bool),
+	register:   make(chan *wsClient),
+	unregister: make(chan *wsClient),
+	direct:     make(chan wsTarget),
+}
+
+// run is the hub's single goroutine - started once from main().
+func (h *wsHub) run() {
+	for {
+		select {
+		case c := <-h.register:
+			h.clients[c] = true
+			log.Printf("📡 WS client connected - UserID: %d, Role: %s (total: %d)", c.userID, c.role, len(h.clients))
+
+		case c := <-h.unregister:
+			if _, ok := h.clients[c]; ok {
+				delete(h.clients, c)
+				c.conn.Close()
+				log.Printf("📡 WS client disconnected - UserID: %d (total: %d)", c.userID, len(h.clients))
+			}
+
+		case t := <-h.direct:
+			for c := range h.clients {
+				if (t.userID > 0 && c.userID == t.userID) || (t.role != "" && c.role == t.role) {
+					if err := c.conn.WriteJSON(t.message); err != nil {
+						log.Printf("⚠️ WS write failed - UserID: %d: %v", c.userID, err)
+					}
+				}
+			}
+		}
+	}
+}
+
+var upgrader = websocket.Upgrader{
+	CheckOrigin: func(r *http.Request) bool {
+		return true // development only - restrict in production
+	},
+}
+
+// HandleWebSocket upgrades to a WebSocket connection for real-time
+// notifications. Browsers can't set custom headers on a WebSocket
+// handshake, so the JWT travels as a query parameter (?token=...) and is
+// validated with the same logic as JWTMiddleware. This route is
+// registered on the public router (not behind JWTMiddleware) precisely
+// because that middleware requires an Authorization header the browser's
+// native WebSocket API cannot send.
 func HandleWebSocket(w http.ResponseWriter, r *http.Request) {
-	// Extract user ID from query parameter or header
-	userIDStr := r.URL.Query().Get("user_id")
-	if userIDStr == "" {
-		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(ErrorResponse{
-			Error:   "missing_user_id",
-			Message: "user_id query parameter is required",
-			Code:    400,
-		})
+	tokenString := r.URL.Query().Get("token")
+	if tokenString == "" {
+		w.WriteHeader(http.StatusUnauthorized)
 		return
 	}
 
-	// Parse user ID
-	var userID int
-	_, err := json.Marshal(userIDStr)
+	claims, err := parseJWT(tokenString)
 	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
+		w.WriteHeader(http.StatusUnauthorized)
 		return
 	}
 
-	// Upgrade connection to WebSocket
+	userID := int(claims["user_id"].(float64))
+	role := claims["role"].(string)
+
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		log.Println("WebSocket upgrade error:", err)
 		return
 	}
 
-	// Add client to map
-	clients[conn] = userID
-	log.Printf("📱 WebSocket client connected: User ID %d", userID)
+	client := &wsClient{conn: conn, userID: userID, role: role}
+	hub.register <- client
 
-	// Handle messages from client
-	go handleClientMessages(conn, userID)
+	go readPump(client)
 }
 
-// handleClientMessages reads messages from client and broadcasts them
-func handleClientMessages(conn *websocket.Conn, userID int) {
+// readPump keeps reading from the connection purely to detect
+// disconnects/errors; the app doesn't expect the client to send anything.
+func readPump(c *wsClient) {
 	defer func() {
-		delete(clients, conn)
-		conn.Close()
-		log.Printf("📱 WebSocket client disconnected: User ID %d", userID)
+		hub.unregister <- c
 	}()
-
 	for {
-		// Read message from client
-		var msg map[string]interface{}
-		err := conn.ReadJSON(&msg)
-		if err != nil {
-			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
-				log.Printf("WebSocket error: %v", err)
-			}
+		if _, _, err := c.conn.ReadMessage(); err != nil {
 			return
 		}
-
-		// Process message (e.g., leave approval notification)
-		log.Printf("📩 Message from User %d: %v", userID, msg)
-
-		// Broadcast to all connected clients
-		broadcast <- map[string]interface{}{
-			"from_user": userID,
-			"data":      msg,
-		}
 	}
 }
 
-// BroadcastNotification sends a notification to all connected WebSocket clients
-func BroadcastNotification(notification Notification) {
-	broadcast <- map[string]interface{}{
-		"type":         "notification",
-		"title":        notification.Title,
-		"message":      notification.Message,
-		"notification": notification,
-	}
-}
-
-// SendNotificationToUser sends a notification to a specific user via WebSocket
+// SendNotificationToUser pushes a notification to one connected user (a no-op if they're offline)
 func SendNotificationToUser(userID int, notification Notification) {
-	for conn, cID := range clients {
-		if cID == userID {
-			err := conn.WriteJSON(map[string]interface{}{
-				"type":         "notification",
-				"title":        notification.Title,
-				"message":      notification.Message,
-				"notification": notification,
-			})
-			if err != nil {
-				log.Printf("Error sending notification: %v", err)
-				conn.Close()
-				delete(clients, conn)
-			}
-		}
-	}
+	hub.direct <- wsTarget{userID: userID, message: wsMessage{Type: "notification", Payload: notification}}
+}
+
+// SendNotificationToRole pushes a notification to every connected client with a given role
+func SendNotificationToRole(role string, notification Notification) {
+	hub.direct <- wsTarget{role: role, message: wsMessage{Type: "notification", Payload: notification}}
 }

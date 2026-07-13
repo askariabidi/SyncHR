@@ -12,6 +12,7 @@ import {
   formatDuration,
 } from '../utils/dateFormat';
 import { useDateNavigator } from '../hooks/useDateNavigator';
+import { NotificationBell } from '../components/NotificationBell';
 
 export const EmployeeDashboard = () => {
   const { user, logout } = useAuth();
@@ -167,9 +168,12 @@ export const EmployeeDashboard = () => {
           <h1>Welcome, {fullName || user?.first_name}</h1>
           <p>Employee Dashboard</p>
         </div>
-        <button className="btn-logout" onClick={logout}>
-          Logout
-        </button>
+        <div className="header-actions">
+          <NotificationBell />
+          <button className="btn-logout" onClick={logout}>
+            Logout
+          </button>
+        </div>
       </div>
 
       {/* Error Message */}

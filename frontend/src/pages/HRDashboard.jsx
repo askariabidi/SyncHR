@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { leaveAPI, attendanceAPI, authAPI } from '../services/api';
+import { leaveAPI, attendanceAPI, authAPI, notificationAPI } from '../services/api';
 import '../styles/HRDashboard.css';
 import '../styles/AttendanceCalendar.css';
 import {
@@ -12,6 +12,7 @@ import {
   formatDuration,
 } from '../utils/dateFormat';
 import { useDateNavigator } from '../hooks/useDateNavigator';
+import { NotificationBell } from '../components/NotificationBell';
 
 export const HRDashboard = () => {
   const { user, logout } = useAuth();
@@ -26,6 +27,11 @@ export const HRDashboard = () => {
   // for attendance tracking of all employees
   const [attendanceRecords, setAttendanceRecords] = useState([]);
   const [attendanceLoading, setAttendanceLoading] = useState(false);
+  // for the "send notification" compose form
+  const [notifyTitle, setNotifyTitle] = useState('');
+  const [notifyMessage, setNotifyMessage] = useState('');
+  const [notifySending, setNotifySending] = useState(false);
+  const [notifyStatus, setNotifyStatus] = useState('');
   const {
     todayISO,
     selectedDate,
@@ -114,6 +120,26 @@ export const HRDashboard = () => {
     }
   };
 
+  // Handle sending a notification to all employees
+  const handleSendNotification = async (e) => {
+    e.preventDefault();
+    if (!notifyTitle.trim() || !notifyMessage.trim()) return;
+
+    setNotifySending(true);
+    setNotifyStatus('');
+    try {
+      await notificationAPI.broadcast(notifyTitle.trim(), notifyMessage.trim());
+      setNotifyStatus('Notification sent to all employees.');
+      setNotifyTitle('');
+      setNotifyMessage('');
+    } catch (err) {
+      setNotifyStatus('Failed to send notification: ' + (err.response?.data?.message || 'Unknown error'));
+    } finally {
+      setNotifySending(false);
+      setTimeout(() => setNotifyStatus(''), 4000);
+    }
+  };
+
   // Get status badge
   const getStatusBadge = (status) => {
     switch (status) {
@@ -177,9 +203,41 @@ export const HRDashboard = () => {
           <h1>HR Manager Dashboard</h1>
           <p>Manage employee leave requests</p>
         </div>
-        <button className="btn-logout" onClick={logout}>
-          Logout
-        </button>
+        <div className="header-actions">
+          <NotificationBell />
+          <button className="btn-logout" onClick={logout}>
+            Logout
+          </button>
+        </div>
+      </div>
+
+      {/* Send Notification */}
+      <div className="notify-section">
+        <h2>Send Notification to Employees</h2>
+        <form className="notify-form" onSubmit={handleSendNotification}>
+          <input
+            type="text"
+            className="notify-title-input"
+            placeholder="Notification title"
+            value={notifyTitle}
+            onChange={(e) => setNotifyTitle(e.target.value)}
+            disabled={notifySending}
+            required
+          />
+          <textarea
+            className="notify-message-input"
+            placeholder="Message"
+            value={notifyMessage}
+            onChange={(e) => setNotifyMessage(e.target.value)}
+            rows="2"
+            disabled={notifySending}
+            required
+          />
+          <button type="submit" className="btn-notify-send" disabled={notifySending}>
+            {notifySending ? 'Sending...' : 'Send'}
+          </button>
+        </form>
+        {notifyStatus && <p className="notify-status">{notifyStatus}</p>}
       </div>
 
       {/* Stats */}

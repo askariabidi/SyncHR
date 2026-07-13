@@ -29,9 +29,14 @@ func main() {
 	// Initialize handlers
 	authHandler := NewAuthHandler(db)
 	attendanceHandler := NewAttendanceHandler(db)
-	leaveHandler := NewLeaveHandler(db)
+	notificationHandler := NewNotificationHandler(db)
+	leaveHandler := NewLeaveHandler(db, notificationHandler)
 	payslipHandler := NewPayslipHandler(db)
 	holidayHandler := NewHolidayHandler(db)
+
+	// Start the WebSocket hub - the single goroutine that owns the
+	// connected-client registry and dispatches real-time notifications
+	go hub.run()
 
 	// Create router
 	router := mux.NewRouter()
@@ -51,6 +56,11 @@ func main() {
 
 	router.HandleFunc("/api/auth/login", authHandler.Login).Methods("POST", "OPTIONS")
 	router.HandleFunc("/api/auth/register", authHandler.Register).Methods("POST", "OPTIONS")
+
+	// WebSocket upgrade - registered on the PUBLIC router (not behind JWTMiddleware)
+	// because a browser's native WebSocket API can't set an Authorization header;
+	// the JWT is instead passed as a query param and validated inside HandleWebSocket.
+	router.HandleFunc("/api/ws/notifications", HandleWebSocket).Methods("GET")
 
 	// ============================================================================
 	// PROTECTED ROUTES (JWT authentication required)
@@ -84,8 +94,11 @@ func main() {
 	// Holiday Routes
 	subrouter.HandleFunc("/holidays", holidayHandler.GetHolidays).Methods("GET", "OPTIONS")
 
-	// WebSocket Route
-	subrouter.HandleFunc("/ws/notifications", HandleWebSocket).Methods("GET", "OPTIONS")
+	// Notification Routes
+	subrouter.HandleFunc("/notifications", notificationHandler.GetNotifications).Methods("GET", "OPTIONS")
+	subrouter.HandleFunc("/notifications/read-all", notificationHandler.MarkAllNotificationsRead).Methods("PUT", "OPTIONS")
+	subrouter.HandleFunc("/notifications/{id}/read", notificationHandler.MarkNotificationRead).Methods("PUT", "OPTIONS")
+	subrouter.HandleFunc("/notifications/broadcast", notificationHandler.SendBroadcastNotification).Methods("POST", "OPTIONS")
 
 	// ============================================================================
 	// SERVER STARTUP

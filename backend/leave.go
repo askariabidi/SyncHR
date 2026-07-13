@@ -13,12 +13,13 @@ import (
 
 // LeaveHandler handles leave-related requests
 type LeaveHandler struct {
-	db *sql.DB
+	db       *sql.DB
+	notifier *NotificationHandler
 }
 
 // NewLeaveHandler creates a new leave handler
-func NewLeaveHandler(db *sql.DB) *LeaveHandler {
-	return &LeaveHandler{db: db}
+func NewLeaveHandler(db *sql.DB, notifier *NotificationHandler) *LeaveHandler {
+	return &LeaveHandler{db: db, notifier: notifier}
 }
 
 // ApplyLeave handles leave request submission
@@ -96,17 +97,8 @@ func (h *LeaveHandler) ApplyLeave(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// // Send notification to HR managers via WebSocket
-	// notification := Notification{
-	// 	UserID:  userID,
-	// 	Title:   "New Leave Request",
-	// 	Message: "A new leave request has been submitted",
-	// 	Type:    "leave_request",
-	// 	RelatedEntityID: &leaveID,
-	// 	IsRead:  false,
-	// 	CreatedAt: time.Now(),
-	// }
-	// BroadcastNotification(notification)
+	// Notify HR managers - persisted to DB and pushed live to anyone connected
+	h.notifier.notifyRole("hr_manager", "New Leave Request", "A new leave request has been submitted", "leave_request", &leaveID)
 
 	w.WriteHeader(http.StatusCreated)
 	json.NewEncoder(w).Encode(SuccessResponse{
@@ -493,22 +485,13 @@ func (h *LeaveHandler) ApproveLeave(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Send notification to employee via WebSocket
-	// notification := Notification{
-	// 	UserID:          lr.UserID,
-	// 	Title:           "Leave Approved",
-	// 	Message:         "Your leave request has been approved",
-	// 	Type:            "leave_approved",
-	// 	RelatedEntityID: &leaveID,
-	// 	IsRead:          false,
-	// 	CreatedAt:       time.Now(),
-	// }
-	// SendNotificationToUser(lr.UserID, notification)
+	// Notify the employee - persisted to DB and pushed live if they're online
+	h.notifier.notifyUser(lr.UserID, "Leave Approved", "Your leave request has been approved", "leave_approved", &leaveID)
 
-	// w.WriteHeader(http.StatusOK)
-	// json.NewEncoder(w).Encode(SuccessResponse{
-	// 	Message: "Leave request approved successfully",
-	// })
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(SuccessResponse{
+		Message: "Leave request approved successfully",
+	})
 }
 
 // RejectLeave handles leave request rejection (HR only)
@@ -592,17 +575,8 @@ func (h *LeaveHandler) RejectLeave(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Send notification to employee via WebSocket
-	// notification := Notification{
-	// 	UserID:          employeeUserID,
-	// 	Title:           "Leave Rejected",
-	// 	Message:         "Your leave request has been rejected",
-	// 	Type:            "leave_rejected",
-	// 	RelatedEntityID: &leaveID,
-	// 	IsRead:          false,
-	// 	CreatedAt:       time.Now(),
-	// }
-	// SendNotificationToUser(employeeUserID, notification)
+	// Notify the employee - persisted to DB and pushed live if they're online
+	h.notifier.notifyUser(employeeUserID, "Leave Rejected", "Your leave request has been rejected", "leave_rejected", &leaveID)
 
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(SuccessResponse{
