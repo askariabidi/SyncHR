@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { leaveAPI } from '../services/api';
+import { leaveAPI, attendanceAPI, authAPI } from '../services/api';
 import '../styles/HRDashboard.css';
-import { attendanceAPI } from '../services/api';
 
 export const HRDashboard = () => {
   const { user, logout } = useAuth();
@@ -17,11 +16,16 @@ export const HRDashboard = () => {
   // for attendance tracking of all employees
   const [attendanceRecords, setAttendanceRecords] = useState([]);
   const [attendanceLoading, setAttendanceLoading] = useState(false);
+  // for the employee directory
+  const [employees, setEmployees] = useState([]);
+  const [employeesLoading, setEmployeesLoading] = useState(false);
+  const [employeeSearch, setEmployeeSearch] = useState('');
 
   // Fetch leave requests on refresh
   useEffect(() => {
     fetchLeaveRequests();
     fetchAttendanceRecords();
+    fetchEmployees();
     // const interval = setInterval(fetchLeaveRequests, 5000);
     // return () => clearInterval(interval);
   }, []);
@@ -142,17 +146,34 @@ export const HRDashboard = () => {
     }
   };
 
-  const getEmployeeName = (userId) => {
-    // Map user ID to name (you can enhance this with actual data)
-    const employeeNames = {
-      3: 'John Doe',
-      5: 'Alice Johnson',
-      6: 'Bob Wilson',
-      7: 'Charlie Brown',
-      8: 'Diana Davis',
-    };
-    return employeeNames[userId] || `Employee ${userId}`;
+  const fetchEmployees = async () => {
+    try {
+      setEmployeesLoading(true);
+      const response = await authAPI.getAllEmployees();
+      setEmployees(response.data.data.employees || []);
+    } catch (err) {
+      console.error('Failed to fetch employees:', err);
+    } finally {
+      setEmployeesLoading(false);
+    }
   };
+
+  const getEmployeeName = (userId) => {
+    const employee = employees.find((e) => e.id === userId);
+    return employee ? `${employee.first_name} ${employee.last_name}` : `Employee ${userId}`;
+  };
+
+  // Filter employees by search query (name, email, or department)
+  const filteredEmployees = employees.filter((employee) => {
+    const query = employeeSearch.trim().toLowerCase();
+    if (!query) return true;
+    const fullName = `${employee.first_name} ${employee.last_name}`.toLowerCase();
+    return (
+      fullName.includes(query) ||
+      employee.email.toLowerCase().includes(query) ||
+      employee.department.toLowerCase().includes(query)
+    );
+  });
 
   return (
     <div className="hr-dashboard-container">
@@ -366,6 +387,58 @@ export const HRDashboard = () => {
         ) : (
           <div className="empty-state">
             <p>📭 No attendance records found</p>
+          </div>
+        )}
+      </div>
+
+      {/* Employees Section */}
+      <div className="employees-section">
+        <h2>👥 All Employees</h2>
+
+        <input
+          type="text"
+          className="employee-search-input"
+          placeholder="🔍 Search by name, email, or department..."
+          value={employeeSearch}
+          onChange={(e) => setEmployeeSearch(e.target.value)}
+        />
+
+        {employeesLoading ? (
+          <div className="loading">Loading employees...</div>
+        ) : filteredEmployees.length > 0 ? (
+          <div className="employees-table-container">
+            <table className="employees-table">
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>Name</th>
+                  <th>Email</th>
+                  <th>Role</th>
+                  <th>Department</th>
+                  <th>Phone</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredEmployees.map((employee) => (
+                  <tr key={employee.id}>
+                    <td>{employee.id}</td>
+                    <td className="employee-name">{employee.first_name} {employee.last_name}</td>
+                    <td>{employee.email}</td>
+                    <td>
+                      <span className={`role-badge role-${employee.role}`}>
+                        {employee.role === 'hr_manager' ? '👔 HR Manager' : '👤 Employee'}
+                      </span>
+                    </td>
+                    <td>{employee.department}</td>
+                    <td>{employee.phone_number}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div className="empty-state">
+            <p>📭 No employees found</p>
           </div>
         )}
       </div>

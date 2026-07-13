@@ -348,3 +348,54 @@ func (h *AuthHandler) initializeLeaveBalance(userID int) error {
 
 	return nil
 }
+
+// GetAllEmployees retrieves all employees (HR only)
+func (h *AuthHandler) GetAllEmployees(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+
+	// Extract role from context
+	role, _ := r.Context().Value("role").(string)
+
+	// Only HR managers can access this
+	if role != "hr_manager" {
+		w.WriteHeader(http.StatusForbidden)
+		json.NewEncoder(w).Encode(ErrorResponse{
+			Error:   "forbidden",
+			Message: "Only HR managers can access the employee list",
+			Code:    403,
+		})
+		return
+	}
+
+	rows, err := h.db.Query(
+		"SELECT id, email, first_name, last_name, role, department, phone_number, date_of_joining, created_at, updated_at FROM users ORDER BY first_name ASC",
+	)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(ErrorResponse{
+			Error:   "database_error",
+			Message: "Failed to retrieve employees",
+			Code:    500,
+		})
+		return
+	}
+	defer rows.Close()
+
+	var employees []User
+	for rows.Next() {
+		var u User
+		err := rows.Scan(&u.ID, &u.Email, &u.FirstName, &u.LastName, &u.Role, &u.Department, &u.PhoneNumber, &u.DateOfJoining, &u.CreatedAt, &u.UpdatedAt)
+		if err != nil {
+			continue
+		}
+		employees = append(employees, u)
+	}
+
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(SuccessResponse{
+		Message: "Employees retrieved successfully",
+		Data: map[string]interface{}{
+			"employees": employees,
+		},
+	})
+}

@@ -170,6 +170,9 @@ export const authAPI = {
 
   updateProfile: (userData) =>
     apiClient.put('/users/profile', userData),
+
+  getAllEmployees: () =>
+    apiClient.get('/users/employees'),
 };
 
 // ============================================================================

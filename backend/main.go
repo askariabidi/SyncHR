@@ -62,6 +62,7 @@ func main() {
 	// User Profile Routes
 	subrouter.HandleFunc("/users/profile", authHandler.GetProfile).Methods("GET", "OPTIONS")
 	subrouter.HandleFunc("/users/profile", authHandler.UpdateProfile).Methods("PUT", "OPTIONS")
+	subrouter.HandleFunc("/users/employees", authHandler.GetAllEmployees).Methods("GET", "OPTIONS")
 
 	// Attendance Routes
 	subrouter.HandleFunc("/attendance/checkin", attendanceHandler.CheckIn).Methods("POST", "OPTIONS")
