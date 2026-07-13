@@ -2,7 +2,7 @@
 
 This document lists the test cases covering SyncHR's main workflows. Wherever a case is backed by an automated Go test, the **Automated** column names the exact test function — run `go test ./...` from `backend/` to execute all of them for real against a live Postgres database (see `README.md`). Cases without an automated entry are manual/UI checks (frontend behavior that isn't meaningfully unit-testable without a browser automation harness) and are marked **Manual**.
 
-All automated cases below were run at the time of writing: **21/21 passing**, including under Go's `-race` detector (`go test -race ./...`), which specifically exercises the WebSocket hub's concurrent goroutine/channel design under contention.
+All automated cases below were run at the time of writing: **25/25 passing**, including under Go's `-race` detector (`go test -race ./...`), which specifically exercises the WebSocket hub's concurrent goroutine/channel design under contention.
 
 ## Authentication Workflow
 
@@ -16,6 +16,9 @@ All automated cases below were run at the time of writing: **21/21 passing**, in
 | AUTH-06 | Session | Access a protected route with an expired token | Have a token whose `exp` claim is in the past | Call any protected route | 401 Unauthorized | `TestParseJWT_ExpiredToken` |
 | AUTH-07 | Session | Access a protected route with a tampered/wrong-secret token | Have a token signed with a different secret | Call any protected route | 401 Unauthorized | `TestParseJWT_WrongSecret` |
 | AUTH-08 | Session | Access a protected route with a token using the `none` algorithm | Craft a `none`-alg token (classic JWT bypass attempt) | Call any protected route | 401 Unauthorized - signing method is validated, not just presence of a token | `TestParseJWT_RejectsNoneAlgorithm` |
+| AUTH-09 | Password reset | HR resets an employee's password | Employee account exists, HR logged in | `PUT /api/users/{id}/reset-password` | 200 OK with a new temporary password returned; the employee's old password stops working and the new one logs in successfully | `TestAuth_HRCanResetEmployeePassword` |
+| AUTH-10 | Login UX | Submitting the login form with wrong credentials | On the login page | Enter a bad password, submit | An inline error message is shown; the page does **not** hard-navigate/reload (regression test - the axios 401 interceptor used to force a full page redirect on any 401, including a failed login attempt itself, which wiped the error message and looked like an unexplained refresh) | Manual (frontend, `api.js` interceptor fix) |
+| AUTH-11 | Onboarding / recovery | Forgot password or need first-time credentials | On the login page | Click "Forgot password? Contact HR" or "New employee? Ask HR" | Opens a pre-filled `mailto:` to HR - matches the HR-mediated reset model (no self-service reset exists by design) | Manual (frontend) |
 
 ## Authorization (RBAC) Workflow
 
@@ -26,6 +29,8 @@ All automated cases below were run at the time of writing: **21/21 passing**, in
 | RBAC-03 | Authorization | Employee tries to broadcast a company-wide notification | Employee logged in | `POST /api/notifications/broadcast` with an employee token | 403 Forbidden | `TestRBAC_EmployeeCannotBroadcastNotification` |
 | RBAC-04 | Authorization | HR views the employee directory | HR logged in | `GET /api/users/employees` | 200 OK, full employee list returned | Manual (exercised via HR Dashboard "All Employees" section) |
 | RBAC-05 | Frontend routing | Employee navigates directly to the HR Dashboard URL | Logged in as employee | Visit `/dashboard/hr` | Redirected to `/dashboard/employee` instead of rendering the HR page | Manual (`ProtectedRoute` `allowedRoles`) |
+| RBAC-06 | Authorization | Employee tries to reset a password (including their own) | Employee logged in | `PUT /api/users/{id}/reset-password` with an employee token | 403 Forbidden | `TestRBAC_EmployeeCannotResetPassword` |
+| RBAC-07 | Multi-tab session | A tab left open on one account stays in sync when a different account logs in on another tab | Two tabs open, same browser | Log in as HR in tab A; in tab B, log in as a different employee account; return to tab A and trigger an HR-only action | Tab A's auth state updates to match the most recently logged-in account instead of silently sending a stale/mismatched token (regression test - previously tab A kept rendering as the old account while actually sending the new account's token, causing confusing 403s) | Manual (frontend, `AuthContext` `storage` event listener) |
 
 ## Attendance Workflow
 

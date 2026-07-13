@@ -48,6 +48,11 @@ export const HRDashboard = () => {
   const [employees, setEmployees] = useState([]);
   const [employeesLoading, setEmployeesLoading] = useState(false);
   const [employeeSearch, setEmployeeSearch] = useState('');
+  // for the "reset password" flow
+  const [resetPasswordTarget, setResetPasswordTarget] = useState(null); // employee awaiting confirmation
+  const [resetPasswordResult, setResetPasswordResult] = useState(null); // { email, temporary_password }
+  const [resettingPassword, setResettingPassword] = useState(false);
+  const [copyStatus, setCopyStatus] = useState('');
 
   // Fetch leave requests and employees on mount
   useEffect(() => {
@@ -138,6 +143,33 @@ export const HRDashboard = () => {
       setNotifySending(false);
       setTimeout(() => setNotifyStatus(''), 4000);
     }
+  };
+
+  // Confirm and perform a password reset for an employee
+  const handleConfirmResetPassword = async () => {
+    if (!resetPasswordTarget) return;
+    setResettingPassword(true);
+    try {
+      const response = await authAPI.resetEmployeePassword(resetPasswordTarget.id);
+      setResetPasswordResult(response.data.data);
+      setResetPasswordTarget(null);
+    } catch (err) {
+      alert('Failed to reset password: ' + (err.response?.data?.message || 'Unknown error'));
+      setResetPasswordTarget(null);
+    } finally {
+      setResettingPassword(false);
+    }
+  };
+
+  const handleCopyTempPassword = async () => {
+    if (!resetPasswordResult) return;
+    try {
+      await navigator.clipboard.writeText(resetPasswordResult.temporary_password);
+      setCopyStatus('Copied!');
+    } catch {
+      setCopyStatus('Could not copy - select and copy manually');
+    }
+    setTimeout(() => setCopyStatus(''), 2000);
   };
 
   // Get status badge
@@ -502,6 +534,7 @@ export const HRDashboard = () => {
                   <th>Role</th>
                   <th>Department</th>
                   <th>Phone</th>
+                  <th>Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -517,6 +550,17 @@ export const HRDashboard = () => {
                     </td>
                     <td>{employee.department}</td>
                     <td>{employee.phone_number}</td>
+                    <td>
+                      <button
+                        type="button"
+                        className="btn-reset-password"
+                        onClick={() => setResetPasswordTarget(employee)}
+                        disabled={employee.id === user?.id}
+                        title={employee.id === user?.id ? "You can't reset your own password here" : 'Reset this employee\'s password'}
+                      >
+                        Reset Password
+                      </button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -571,6 +615,81 @@ export const HRDashboard = () => {
                 disabled={actionInProgress}
               >
                 Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Reset Password - Confirmation */}
+      {resetPasswordTarget && (
+        <div className="modal-overlay" onClick={() => !resettingPassword && setResetPasswordTarget(null)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2>Reset Password</h2>
+              <button className="modal-close" onClick={() => setResetPasswordTarget(null)} disabled={resettingPassword}>
+                &times;
+              </button>
+            </div>
+
+            <div className="modal-body">
+              <p>
+                Reset the password for <strong>{resetPasswordTarget.first_name} {resetPasswordTarget.last_name}</strong> ({resetPasswordTarget.email})?
+              </p>
+              <p className="reset-password-warning">
+                Their current password will stop working immediately. You'll need to relay the new temporary password to them yourself.
+              </p>
+            </div>
+
+            <div className="modal-footer">
+              <button
+                className="btn-modal-cancel"
+                onClick={() => setResetPasswordTarget(null)}
+                disabled={resettingPassword}
+              >
+                Cancel
+              </button>
+              <button
+                className="btn-modal-approve"
+                onClick={handleConfirmResetPassword}
+                disabled={resettingPassword}
+              >
+                {resettingPassword ? 'Resetting...' : 'Reset Password'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Reset Password - Result */}
+      {resetPasswordResult && (
+        <div className="modal-overlay" onClick={() => setResetPasswordResult(null)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2>Password Reset</h2>
+              <button className="modal-close" onClick={() => setResetPasswordResult(null)}>
+                &times;
+              </button>
+            </div>
+
+            <div className="modal-body">
+              <p>
+                New temporary password for <strong>{resetPasswordResult.email}</strong>:
+              </p>
+              <div className="temp-password-display">
+                <code>{resetPasswordResult.temporary_password}</code>
+                <button type="button" className="btn-copy-password" onClick={handleCopyTempPassword}>
+                  {copyStatus || 'Copy'}
+                </button>
+              </div>
+              <p className="reset-password-warning">
+                This won't be shown again - relay it to the employee now (chat, phone, in person).
+              </p>
+            </div>
+
+            <div className="modal-footer">
+              <button className="btn-modal-cancel" onClick={() => setResetPasswordResult(null)}>
+                Done
               </button>
             </div>
           </div>

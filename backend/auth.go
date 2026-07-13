@@ -1,24 +1,29 @@
 package main
 
 import (
+	"crypto/rand"
 	"database/sql"
 	"encoding/json"
+	"math/big"
 	"net/http"
 	"os"
+	"strconv"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/gorilla/mux"
 	"golang.org/x/crypto/bcrypt"
 )
 
 // AuthHandler handles authentication-related requests
 type AuthHandler struct {
-	db *sql.DB
+	db       *sql.DB
+	notifier *NotificationHandler
 }
 
 // NewAuthHandler creates a new authentication handler
-func NewAuthHandler(db *sql.DB) *AuthHandler {
-	return &AuthHandler{db: db}
+func NewAuthHandler(db *sql.DB, notifier *NotificationHandler) *AuthHandler {
+	return &AuthHandler{db: db, notifier: notifier}
 }
 
 // Register handles user registration
@@ -384,6 +389,121 @@ func (h *AuthHandler) GetAllEmployees(w http.ResponseWriter, r *http.Request) {
 		Message: "Employees retrieved successfully",
 		Data: map[string]interface{}{
 			"employees": employees,
+		},
+	})
+}
+
+const tempPasswordChars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789"
+
+// generateTempPassword returns a random 12-character password drawn from a
+// crypto/rand source (not math/rand - this value gets handed to HR to relay,
+// so it needs to be unguessable, not just look random).
+func generateTempPassword() (string, error) {
+	const length = 12
+	result := make([]byte, length)
+	for i := range result {
+		n, err := rand.Int(rand.Reader, big.NewInt(int64(len(tempPasswordChars))))
+		if err != nil {
+			return "", err
+		}
+		result[i] = tempPasswordChars[n.Int64()]
+	}
+	return string(result), nil
+}
+
+// ResetEmployeePassword lets an HR manager generate a new temporary password
+// for an employee (HR-mediated reset - there is no self-service flow; the
+// temporary password is returned once here for HR to relay to the employee
+// out of band, e.g. by chat or phone, matching how "ask HR for your
+// credentials" already works for new hires).
+func (h *AuthHandler) ResetEmployeePassword(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+
+	role, _ := r.Context().Value("role").(string)
+	if role != "hr_manager" {
+		w.WriteHeader(http.StatusForbidden)
+		json.NewEncoder(w).Encode(ErrorResponse{
+			Error:   "forbidden",
+			Message: "Only HR managers can reset passwords",
+			Code:    403,
+		})
+		return
+	}
+
+	vars := mux.Vars(r)
+	targetUserID, err := strconv.Atoi(vars["id"])
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(ErrorResponse{
+			Error:   "invalid_id",
+			Message: "Invalid user ID",
+			Code:    400,
+		})
+		return
+	}
+
+	var targetEmail string
+	err = h.db.QueryRow("SELECT email FROM users WHERE id = $1", targetUserID).Scan(&targetEmail)
+	if err == sql.ErrNoRows {
+		w.WriteHeader(http.StatusNotFound)
+		json.NewEncoder(w).Encode(ErrorResponse{
+			Error:   "not_found",
+			Message: "Employee not found",
+			Code:    404,
+		})
+		return
+	} else if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(ErrorResponse{
+			Error:   "database_error",
+			Message: "Failed to look up employee",
+			Code:    500,
+		})
+		return
+	}
+
+	tempPassword, err := generateTempPassword()
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(ErrorResponse{
+			Error:   "generation_error",
+			Message: "Failed to generate a new password",
+			Code:    500,
+		})
+		return
+	}
+
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(tempPassword), bcrypt.DefaultCost)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(ErrorResponse{
+			Error:   "password_hash_error",
+			Message: "Failed to hash the new password",
+			Code:    500,
+		})
+		return
+	}
+
+	_, err = h.db.Exec("UPDATE users SET password_hash = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2", hashedPassword, targetUserID)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(ErrorResponse{
+			Error:   "database_error",
+			Message: "Failed to reset password",
+			Code:    500,
+		})
+		return
+	}
+
+	// Let the employee know it happened (not the password itself - HR relays that out of band)
+	h.notifier.notifyUser(targetUserID, "Password Reset", "HR has reset your password. Please contact HR to receive your new temporary password.", "password_reset", nil)
+
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(SuccessResponse{
+		Message: "Password reset successfully",
+		Data: map[string]interface{}{
+			"email":               targetEmail,
+			"temporary_password":  tempPassword,
 		},
 	})
 }

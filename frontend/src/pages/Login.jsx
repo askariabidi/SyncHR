@@ -40,6 +40,7 @@ export const Login = () => {
   return (
     <div className="login-container">
       <div className="login-card">
+        <div className="login-logo">S</div>
         <h1>SyncHR</h1>
         <p className="subtitle">Distributed HR Management System</p>
 
@@ -76,6 +77,21 @@ export const Login = () => {
             {loading ? 'Logging in...' : 'Login'}
           </button>
         </form>
+
+        <div className="login-help-links">
+          <a
+            className="login-help-link"
+            href="mailto:hr@example.com?subject=Forgot%20Password&body=Hi%20HR%2C%0A%0AI%20forgot%20my%20SyncHR%20password.%20Could%20you%20please%20reset%20it%20for%20me%3F%0A%0AThanks!"
+          >
+            Forgot password? <span>Contact HR</span>
+          </a>
+          <a
+            className="login-help-link"
+            href="mailto:hr@example.com?subject=New%20Employee%20-%20Account%20Request&body=Hi%20HR%2C%0A%0AI'm%20a%20new%20employee%20and%20need%20my%20SyncHR%20login%20credentials.%0A%0AThanks!"
+          >
+            New employee? <span>Ask HR</span>
+          </a>
+        </div>
       </div>
     </div>
   );

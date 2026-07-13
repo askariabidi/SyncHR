@@ -152,6 +152,61 @@ func TestAuth_Register_DuplicateEmail_Rejected(t *testing.T) {
 	}
 }
 
+type resetPasswordResponse struct {
+	Data struct {
+		Email              string `json:"email"`
+		TemporaryPassword  string `json:"temporary_password"`
+	} `json:"data"`
+}
+
+// TC-AUTH-09: HR resets an employee's password; the employee's old password
+// stops working and the newly-issued temporary password logs them in.
+func TestAuth_HRCanResetEmployeePassword(t *testing.T) {
+	emp := registerAndLogin(t, "employee")
+	hr := registerAndLogin(t, "hr_manager")
+
+	var resetResp resetPasswordResponse
+	rec := apiRequest(t, http.MethodPut, fmt.Sprintf("/api/users/%d/reset-password", emp.User.ID), hr.Token, nil, &resetResp)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("reset status = %d, want 200. body: %s", rec.Code, rec.Body.String())
+	}
+	if len(resetResp.Data.TemporaryPassword) < 8 {
+		t.Fatalf("expected a substantial temporary password, got %q", resetResp.Data.TemporaryPassword)
+	}
+	if resetResp.Data.Email != emp.User.Email {
+		t.Errorf("email = %q, want %q", resetResp.Data.Email, emp.User.Email)
+	}
+
+	// old password must no longer work
+	rec = apiRequest(t, http.MethodPost, "/api/auth/login", "", map[string]string{
+		"email":    emp.User.Email,
+		"password": testPassword,
+	}, nil)
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("old password login status = %d, want 401. body: %s", rec.Code, rec.Body.String())
+	}
+
+	// the newly issued temporary password must work
+	rec = apiRequest(t, http.MethodPost, "/api/auth/login", "", map[string]string{
+		"email":    emp.User.Email,
+		"password": resetResp.Data.TemporaryPassword,
+	}, nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("temporary password login status = %d, want 200. body: %s", rec.Code, rec.Body.String())
+	}
+}
+
+// TC-RBAC-05: an employee must not be able to reset anyone's password,
+// including their own, through this HR-only endpoint.
+func TestRBAC_EmployeeCannotResetPassword(t *testing.T) {
+	emp := registerAndLogin(t, "employee")
+
+	rec := apiRequest(t, http.MethodPut, fmt.Sprintf("/api/users/%d/reset-password", emp.User.ID), emp.Token, nil, nil)
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("status = %d, want 403. body: %s", rec.Code, rec.Body.String())
+	}
+}
+
 // ============================================================================
 // TC-RBAC: Role-based access control
 // ============================================================================

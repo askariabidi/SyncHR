@@ -433,6 +433,17 @@
   padding: 22px;
 }
 
+.modal-body p {
+  margin: 0 0 8px;
+  font-size: 14px;
+  color: var(--color-text);
+  line-height: 1.5;
+}
+
+.modal-body p:last-child {
+  margin-bottom: 0;
+}
+
 .modal-body label {
   display: block;
   margin-bottom: 9px;
@@ -791,4 +802,71 @@
   background-color: var(--color-neutral-bg);
   color: var(--color-neutral-text);
   border: 1px solid var(--color-border-strong);
+}
+
+/* Reset Password */
+.btn-reset-password {
+  padding: 6px 12px;
+  background: transparent;
+  color: var(--color-danger-text);
+  border: 1px solid var(--color-danger-border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 11px;
+  white-space: nowrap;
+  transition: all 0.15s;
+}
+
+.btn-reset-password:hover:not(:disabled) {
+  background: var(--color-danger);
+  color: white;
+}
+
+.btn-reset-password:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.reset-password-warning {
+  margin-top: 10px;
+  font-size: 12px;
+  color: var(--color-text-subtle);
+}
+
+.temp-password-display {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 12px;
+  padding: 12px 14px;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+}
+
+.temp-password-display code {
+  flex: 1;
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--color-text);
+  letter-spacing: 0.5px;
+}
+
+.btn-copy-password {
+  padding: 6px 14px;
+  background: var(--color-accent);
+  color: white;
+  border: none;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 12px;
+  white-space: nowrap;
+  transition: background-color 0.15s;
+}
+
+.btn-copy-password:hover {
+  background: var(--color-accent-hover);
 }

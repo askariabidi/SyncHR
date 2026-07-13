@@ -26,8 +26,13 @@ apiClient.interceptors.request.use((config) => {
 apiClient.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status === 401) {
-      // Token expired or invalid
+    const isAuthEndpoint = error.config?.url?.includes('/auth/login') || error.config?.url?.includes('/auth/register');
+
+    // A 401 from login/register just means "wrong credentials" - let the
+    // page's own error handling show that. Only treat 401 as "your session
+    // expired" (and force back to login) when it comes from some other,
+    // already-authenticated request and we actually had a token to expire.
+    if (error.response?.status === 401 && !isAuthEndpoint && localStorage.getItem('token')) {
       localStorage.removeItem('token');
       localStorage.removeItem('user');
       window.location.href = '/login';
@@ -55,6 +60,10 @@ export const authAPI = {
 
   getAllEmployees: () =>
     apiClient.get('/users/employees'),
+
+  // HR only - generates a new temporary password for an employee
+  resetEmployeePassword: (userId) =>
+    apiClient.put(`/users/${userId}/reset-password`),
 };
 
 // ============================================================================

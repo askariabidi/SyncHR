@@ -30,9 +30,9 @@ func SetupRouter(db *sql.DB) *mux.Router {
 	startHub()
 
 	// Initialize handlers
-	authHandler := NewAuthHandler(db)
-	attendanceHandler := NewAttendanceHandler(db)
 	notificationHandler := NewNotificationHandler(db)
+	authHandler := NewAuthHandler(db, notificationHandler)
+	attendanceHandler := NewAttendanceHandler(db)
 	leaveHandler := NewLeaveHandler(db, notificationHandler)
 	payslipHandler := NewPayslipHandler(db)
 	holidayHandler := NewHolidayHandler(db)
@@ -71,6 +71,7 @@ func SetupRouter(db *sql.DB) *mux.Router {
 	subrouter.HandleFunc("/users/profile", authHandler.GetProfile).Methods("GET", "OPTIONS")
 	subrouter.HandleFunc("/users/profile", authHandler.UpdateProfile).Methods("PUT", "OPTIONS")
 	subrouter.HandleFunc("/users/employees", authHandler.GetAllEmployees).Methods("GET", "OPTIONS")
+	subrouter.HandleFunc("/users/{id}/reset-password", authHandler.ResetEmployeePassword).Methods("PUT", "OPTIONS")
 
 	// Attendance Routes
 	subrouter.HandleFunc("/attendance/checkin", attendanceHandler.CheckIn).Methods("POST", "OPTIONS")
