@@ -2,16 +2,16 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { leaveAPI, attendanceAPI, authAPI } from '../services/api';
 import '../styles/HRDashboard.css';
-
-const MONTH_NAMES = [
-  'January', 'February', 'March', 'April', 'May', 'June',
-  'July', 'August', 'September', 'October', 'November', 'December',
-];
-
-const getTodayISO = () => {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-};
+import '../styles/AttendanceCalendar.css';
+import {
+  MONTH_NAMES,
+  buildDateStr,
+  formatDate,
+  formatDateWithWeekday,
+  formatTime24,
+  formatDuration,
+} from '../utils/dateFormat';
+import { useDateNavigator } from '../hooks/useDateNavigator';
 
 export const HRDashboard = () => {
   const { user, logout } = useAuth();
@@ -26,10 +26,18 @@ export const HRDashboard = () => {
   // for attendance tracking of all employees
   const [attendanceRecords, setAttendanceRecords] = useState([]);
   const [attendanceLoading, setAttendanceLoading] = useState(false);
-  const todayISO = getTodayISO();
-  const [selectedDate, setSelectedDate] = useState(todayISO);
-  const [viewYear, setViewYear] = useState(new Date().getFullYear());
-  const [viewMonth, setViewMonth] = useState(new Date().getMonth()); // 0-11
+  const {
+    todayISO,
+    selectedDate,
+    viewYear,
+    viewMonth,
+    isCurrentMonthView,
+    handlePrevMonth,
+    handleNextMonth,
+    handleDayClick,
+    handleDatePickerChange,
+    daysInViewMonth,
+  } = useDateNavigator();
   // for the employee directory
   const [employees, setEmployees] = useState([]);
   const [employeesLoading, setEmployeesLoading] = useState(false);
@@ -132,51 +140,6 @@ export const HRDashboard = () => {
     }
   };
 
-  // Whether the month currently shown in the day tabs is the real-world current month
-  const isCurrentMonthView = () => {
-    const now = new Date();
-    return viewYear === now.getFullYear() && viewMonth === now.getMonth();
-  };
-
-  const handlePrevMonth = () => {
-    if (viewMonth === 0) {
-      setViewYear((y) => y - 1);
-      setViewMonth(11);
-    } else {
-      setViewMonth((m) => m - 1);
-    }
-  };
-
-  const handleNextMonth = () => {
-    if (isCurrentMonthView()) return; // no browsing into the future
-    if (viewMonth === 11) {
-      setViewYear((y) => y + 1);
-      setViewMonth(0);
-    } else {
-      setViewMonth((m) => m + 1);
-    }
-  };
-
-  const buildDateStr = (year, month, day) =>
-    `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-
-  const handleDayClick = (day) => {
-    const dateStr = buildDateStr(viewYear, viewMonth, day);
-    if (dateStr > todayISO) return;
-    setSelectedDate(dateStr);
-  };
-
-  const handleDatePickerChange = (e) => {
-    const value = e.target.value;
-    if (!value) return;
-    setSelectedDate(value);
-    const [y, m] = value.split('-').map(Number);
-    setViewYear(y);
-    setViewMonth(m - 1);
-  };
-
-  const daysInViewMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
-
   const fetchEmployees = async () => {
     try {
       setEmployeesLoading(true);
@@ -205,55 +168,6 @@ export const HRDashboard = () => {
       employee.department.toLowerCase().includes(query)
     );
   });
-
-  // The backend sends Go's zero-value time ("0001-01-01T00:00:00Z") instead of
-  // null when an employee hasn't checked out yet, so treat pre-1970 dates as absent
-  const isValidTimestamp = (timestamp) => {
-    if (!timestamp) return false;
-    return new Date(timestamp).getFullYear() > 1970;
-  };
-
-  const formatDate = (dateStr) => {
-    if (!dateStr) return '-';
-    const date = new Date(dateStr);
-    const day = date.getDate();
-    const suffix =
-      day % 10 === 1 && day !== 11
-        ? 'st'
-        : day % 10 === 2 && day !== 12
-        ? 'nd'
-        : day % 10 === 3 && day !== 13
-        ? 'rd'
-        : 'th';
-    const month = date.toLocaleString('en-US', { month: 'long' });
-    return `${day}${suffix} ${month} ${date.getFullYear()}`;
-  };
-
-  const formatDateWithWeekday = (dateStr) => {
-    if (!dateStr) return '-';
-    const weekday = new Date(dateStr).toLocaleString('en-US', { weekday: 'long' });
-    return `${weekday}, ${formatDate(dateStr)}`;
-  };
-
-  const formatTime24 = (timestamp) => {
-    if (!isValidTimestamp(timestamp)) return '-';
-    return new Date(timestamp).toLocaleTimeString('en-GB', {
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: false,
-    });
-  };
-
-  const formatDuration = (checkInStr, checkOutStr) => {
-    if (!isValidTimestamp(checkInStr) || !isValidTimestamp(checkOutStr)) return '-';
-    const diffMs = new Date(checkOutStr) - new Date(checkInStr);
-    if (diffMs <= 0) return '-';
-    const totalMinutes = Math.round(diffMs / 60000);
-    if (totalMinutes < 60) return '< 1 Hour';
-    const hours = Math.floor(totalMinutes / 60);
-    const minutes = totalMinutes % 60;
-    return `${hours} HR ${minutes} MINS`;
-  };
 
   return (
     <div className="hr-dashboard-container">

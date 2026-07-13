@@ -124,7 +124,8 @@
 .section,
 .attendance-status,
 .leave-balance-section,
-.profile-section {
+.profile-section,
+.my-attendance-section {
   background: var(--color-surface);
   padding: 28px 32px;
   border-radius: var(--radius-lg);
@@ -138,9 +139,53 @@
   margin-bottom: 18px;
 }
 
+.my-attendance-section h2 {
+  font-size: 16px;
+}
+
 .muted-text {
   color: var(--color-text-subtle);
   font-size: 14px;
+}
+
+/* My Attendance (day detail) */
+.attendance-day-detail {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 18px;
+  padding-top: 4px;
+}
+
+.attendance-day-item {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.attendance-day-item label {
+  font-size: 11px;
+  color: var(--color-text-subtle);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+.attendance-day-item span {
+  font-size: 15px;
+  color: var(--color-text);
+  font-weight: 600;
+}
+
+.attendance-day-item .status-badge {
+  display: inline-block;
+  width: fit-content;
+  padding: 5px 12px;
+  font-size: 11px;
+  background-color: var(--color-success);
+}
+
+.attendance-day-item .status-badge.completed {
+  background-color: var(--color-info);
 }
 
 /* Cards Grid (legacy / shared) */
@@ -232,6 +277,15 @@
   color: var(--color-success-text);
   margin: 8px 0 0 0;
   font-size: 13px;
+}
+
+.live-timer {
+  margin-top: 14px;
+  font-size: 30px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 1px;
+  color: var(--color-success-text);
 }
 
 .status-completed {

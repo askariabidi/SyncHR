@@ -2,17 +2,41 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { attendanceAPI, leaveAPI } from '../services/api';
 import '../styles/Dashboard.css';
+import '../styles/AttendanceCalendar.css';
+import {
+  MONTH_NAMES,
+  buildDateStr,
+  isValidTimestamp,
+  formatDateWithWeekday,
+  formatTime24,
+  formatDuration,
+} from '../utils/dateFormat';
+import { useDateNavigator } from '../hooks/useDateNavigator';
 
 export const EmployeeDashboard = () => {
   const { user, logout } = useAuth();
 
   const [leaveBalance, setLeaveBalance] = useState([]);
   const [attendance, setAttendance] = useState(null);
+  const [attendanceHistory, setAttendanceHistory] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [checkedIn, setCheckedIn] = useState(false);
   const [checkInTime, setCheckInTime] = useState(null);
   const [actionLoading, setActionLoading] = useState(false);
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const {
+    todayISO,
+    selectedDate,
+    viewYear,
+    viewMonth,
+    isCurrentMonthView,
+    handlePrevMonth,
+    handleNextMonth,
+    handleDayClick,
+    handleDatePickerChange,
+    daysInViewMonth,
+  } = useDateNavigator();
 
   // Fetch data on mount
   useEffect(() => {
@@ -21,6 +45,19 @@ export const EmployeeDashboard = () => {
     const interval = setInterval(fetchAttendanceStatus, 60000);
     return () => clearInterval(interval);
   }, []);
+
+  // Live-ticking timer while checked in
+  useEffect(() => {
+    if (!checkedIn || !isValidTimestamp(checkInTime)) {
+      setElapsedSeconds(0);
+      return;
+    }
+    const startMs = new Date(checkInTime).getTime();
+    const tick = () => setElapsedSeconds(Math.max(0, Math.floor((Date.now() - startMs) / 1000)));
+    tick();
+    const timer = setInterval(tick, 1000);
+    return () => clearInterval(timer);
+  }, [checkedIn, checkInTime]);
 
   const fetchData = async () => {
     try {
@@ -41,6 +78,7 @@ export const EmployeeDashboard = () => {
     try {
       const response = await attendanceAPI.getAttendanceHistory();
       const records = response.data.data.attendance_records || [];
+      setAttendanceHistory(records);
 
       if (records.length > 0) {
         const today = new Date().toISOString().split('T')[0];
@@ -53,7 +91,7 @@ export const EmployeeDashboard = () => {
         if (todayRecord) {
           setAttendance(todayRecord);
 
-          if (todayRecord.check_in_time && !todayRecord.check_out_time) {
+          if (isValidTimestamp(todayRecord.check_in_time) && !isValidTimestamp(todayRecord.check_out_time)) {
             setCheckedIn(true);
             setCheckInTime(todayRecord.check_in_time);
           } else {
@@ -65,6 +103,10 @@ export const EmployeeDashboard = () => {
           setCheckedIn(false);
           setCheckInTime(null);
         }
+      } else {
+        setAttendance(null);
+        setCheckedIn(false);
+        setCheckInTime(null);
       }
     } catch (err) {
       console.error('Failed to fetch attendance status:', err);
@@ -95,34 +137,34 @@ export const EmployeeDashboard = () => {
     }
   };
 
-  // Format time
-  const formatTime = (timeString) => {
-    if (!timeString) return '-';
-    const time = new Date(timeString);
-    return time.toLocaleTimeString('en-IN', {
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit',
-    });
+  // Confirm before checking out - this ends today's attendance session and can't be undone
+  const handleCheckOutClick = () => {
+    if (window.confirm("Check out now? This will end today's attendance session and cannot be undone.")) {
+      handleCheckOut();
+    }
   };
 
-  // Calculate hours worked
-  const calculateHoursWorked = () => {
-    if (!attendance || !attendance.check_in_time || !attendance.check_out_time) {
-      return '-';
-    }
-    const checkIn = new Date(attendance.check_in_time);
-    const checkOut = new Date(attendance.check_out_time);
-    const hours = ((checkOut - checkIn) / (1000 * 60 * 60)).toFixed(2);
-    return `${hours}h`;
+  // Format the elapsed check-in time as HH:MM:SS
+  const formatElapsed = (totalSeconds) => {
+    const h = String(Math.floor(totalSeconds / 3600)).padStart(2, '0');
+    const m = String(Math.floor((totalSeconds % 3600) / 60)).padStart(2, '0');
+    const s = String(totalSeconds % 60).padStart(2, '0');
+    return `${h}:${m}:${s}`;
   };
+
+  const fullName = [user?.first_name, user?.last_name].filter(Boolean).join(' ');
+
+  // The record (if any) for whichever date is selected in the "My Attendance" section
+  const selectedRecord = attendanceHistory.find(
+    (r) => r.date && r.date.split('T')[0] === selectedDate
+  );
 
   return (
     <div className="dashboard-container">
       {/* Header */}
       <div className="dashboard-header">
         <div>
-          <h1>Welcome, {user?.first_name}</h1>
+          <h1>Welcome, {fullName || user?.first_name}</h1>
           <p>Employee Dashboard</p>
         </div>
         <button className="btn-logout" onClick={logout}>
@@ -140,16 +182,17 @@ export const EmployeeDashboard = () => {
           {checkedIn ? (
             <div className="status-active">
               <span className="status-badge">Checked in</span>
-              <p>Check-in time: {formatTime(checkInTime)}</p>
+              <p>Check-in time: {formatTime24(checkInTime)}</p>
+              <div className="live-timer">{formatElapsed(elapsedSeconds)}</div>
             </div>
-          ) : attendance?.check_out_time ? (
+          ) : isValidTimestamp(attendance?.check_out_time) ? (
             <div className="status-completed">
               <span className="status-badge completed">Completed</span>
               <p>
-                Check-in: {formatTime(attendance.check_in_time)} &middot; Check-out:{' '}
-                {formatTime(attendance.check_out_time)}
+                Check-in: {formatTime24(attendance.check_in_time)} &middot; Check-out:{' '}
+                {formatTime24(attendance.check_out_time)}
               </p>
-              <p>Hours worked: {calculateHoursWorked()}</p>
+              <p>Hours worked: {formatDuration(attendance.check_in_time, attendance.check_out_time)}</p>
             </div>
           ) : (
             <div className="status-inactive">
@@ -172,7 +215,7 @@ export const EmployeeDashboard = () => {
         </button>
         <button
           className="action-btn check-out"
-          onClick={handleCheckOut}
+          onClick={handleCheckOutClick}
           disabled={!checkedIn || actionLoading}
           title={!checkedIn ? 'Check in first to check out' : 'Click to check out'}
         >
@@ -196,6 +239,84 @@ export const EmployeeDashboard = () => {
         >
           View Payslip
         </button>
+      </div>
+
+      {/* My Attendance */}
+      <div className="my-attendance-section">
+        <div className="attendance-section-header">
+          <h2>My Attendance</h2>
+          <input
+            type="date"
+            className="date-picker-input"
+            value={selectedDate}
+            max={todayISO}
+            onChange={handleDatePickerChange}
+          />
+        </div>
+
+        <div className="month-nav">
+          <button className="month-nav-btn" onClick={handlePrevMonth} aria-label="Previous month">
+            &lsaquo;
+          </button>
+          <span className="month-nav-label">{MONTH_NAMES[viewMonth]} {viewYear}</span>
+          <button
+            className="month-nav-btn"
+            onClick={handleNextMonth}
+            disabled={isCurrentMonthView()}
+            aria-label="Next month"
+          >
+            &rsaquo;
+          </button>
+        </div>
+
+        <div className="day-tabs">
+          {Array.from({ length: daysInViewMonth }, (_, i) => i + 1).map((day) => {
+            const dateStr = buildDateStr(viewYear, viewMonth, day);
+            const isFuture = dateStr > todayISO;
+            const dayOfWeek = new Date(viewYear, viewMonth, day).getDay();
+            const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+            return (
+              <button
+                key={day}
+                className={`day-tab ${isWeekend ? 'weekend' : ''} ${dateStr === selectedDate ? 'active' : ''} ${dateStr === todayISO ? 'today' : ''}`}
+                onClick={() => handleDayClick(day)}
+                disabled={isFuture}
+              >
+                {day}
+              </button>
+            );
+          })}
+        </div>
+
+        <p className="attendance-selected-date">
+          Showing attendance for <strong>{formatDateWithWeekday(selectedDate)}</strong>
+          {selectedDate === todayISO && ' (Today)'}
+        </p>
+
+        {selectedRecord ? (
+          <div className="attendance-day-detail">
+            <div className="attendance-day-item">
+              <label>Check In</label>
+              <span>{formatTime24(selectedRecord.check_in_time)}</span>
+            </div>
+            <div className="attendance-day-item">
+              <label>Check Out</label>
+              <span>{formatTime24(selectedRecord.check_out_time)}</span>
+            </div>
+            <div className="attendance-day-item">
+              <label>Duration</label>
+              <span>{formatDuration(selectedRecord.check_in_time, selectedRecord.check_out_time)}</span>
+            </div>
+            <div className="attendance-day-item">
+              <label>Status</label>
+              <span className={`status-badge ${selectedRecord.status === 'checked_out' ? 'completed' : ''}`}>
+                {selectedRecord.status === 'checked_in' ? 'Checked In' : 'Completed'}
+              </span>
+            </div>
+          </div>
+        ) : (
+          <p className="muted-text">No attendance record for this date</p>
+        )}
       </div>
 
       {/* Leave Balance */}
