@@ -42,6 +42,7 @@ backend/    Go REST API + WebSocket server
                         one handler file per domain
   models.go             shared request/response/entity structs
   database.go           Postgres connection + notifications table bootstrap
+  *_test.go             unit, WebSocket-hub, and HTTP integration tests
 
 frontend/   React SPA (Vite)
   src/pages/             one component per screen (Login, dashboards, leave, payslip)
@@ -52,6 +53,8 @@ frontend/   React SPA (Vite)
   src/services/api.js    Axios client + all REST calls
 
 db/schema.sql   full Postgres schema (tables, indexes)
+
+docs/TEST_CASES.md   full test case matrix
 ```
 
 ## Getting Started
@@ -105,6 +108,24 @@ curl -X POST http://localhost:8080/api/auth/register \
 ```
 
 `role` must be either `employee` or `hr_manager`.
+
+## Testing
+
+```bash
+cd backend
+go test ./...              # run everything
+go test -race ./...        # same, under the race detector (exercises the WS hub's concurrency)
+go test -v ./...           # verbose per-test output
+```
+
+The suite includes:
+- **Unit tests** (`middleware_test.go`) for JWT validation — valid tokens, wrong signing secret, expired tokens, malformed tokens, and the classic `alg: none` bypass attempt.
+- **WebSocket hub tests** (`hub_test.go`) that dial real client connections against a real `httptest` server and verify targeted delivery, role-based delivery, disconnect handling, and 20 concurrent clients with no data race.
+- **HTTP integration tests** (`integration_test.go`) that hit the real router with a real database: registration/login, RBAC enforcement on every role-gated endpoint, the full attendance check-in/check-out cycle, and the full leave apply → approve/reject → notification flow.
+
+Integration tests need a reachable Postgres database configured via `backend/.env` (see Backend setup above); each test registers its own throwaway account and deletes it afterward via `t.Cleanup`, so the suite is safe to run repeatedly without leaving data behind. If no database is reachable, DB-backed tests are skipped rather than failing the whole run.
+
+See [`docs/TEST_CASES.md`](docs/TEST_CASES.md) for the full test case matrix (including frontend/manual cases not covered by `go test`), cross-referenced to the automated test function backing each one where one exists.
 
 ## API Overview
 

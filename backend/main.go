@@ -1,30 +1,33 @@
 package main
 
 import (
+	"database/sql"
 	"fmt"
 	"log"
 	"net/http"
 	"os"
+	"sync"
 
 	"github.com/gorilla/mux"
 	"github.com/joho/godotenv"
 )
 
-func main() {
-	// Load environment variables
-	err := godotenv.Load()
-	if err != nil {
-		log.Println("⚠️ No .env file found, using default values")
-	}
+var hubOnce sync.Once
 
-	// Initialize database
-	db, err := ConnectDatabase()
-	if err != nil {
-		log.Fatalf("❌ Failed to connect to database: %v", err)
-	}
-	defer db.Close()
+// startHub launches the WebSocket hub's single goroutine exactly once, no
+// matter how many times it's called - SetupRouter is called once from
+// main() and once per test file, and the hub must not be started twice.
+func startHub() {
+	hubOnce.Do(func() {
+		go hub.run()
+	})
+}
 
-	log.Println("✅ Database connected successfully")
+// SetupRouter wires every handler and route onto a fresh mux.Router. Pulled
+// out of main() so tests can build the exact same routing table against a
+// real *sql.DB without going through os.Exit/ListenAndServe.
+func SetupRouter(db *sql.DB) *mux.Router {
+	startHub()
 
 	// Initialize handlers
 	authHandler := NewAuthHandler(db)
@@ -34,11 +37,6 @@ func main() {
 	payslipHandler := NewPayslipHandler(db)
 	holidayHandler := NewHolidayHandler(db)
 
-	// Start the WebSocket hub - the single goroutine that owns the
-	// connected-client registry and dispatches real-time notifications
-	go hub.run()
-
-	// Create router
 	router := mux.NewRouter()
 
 	// CORS Middleware (must be first!)
@@ -100,9 +98,26 @@ func main() {
 	subrouter.HandleFunc("/notifications/{id}/read", notificationHandler.MarkNotificationRead).Methods("PUT", "OPTIONS")
 	subrouter.HandleFunc("/notifications/broadcast", notificationHandler.SendBroadcastNotification).Methods("POST", "OPTIONS")
 
-	// ============================================================================
-	// SERVER STARTUP
-	// ============================================================================
+	return router
+}
+
+func main() {
+	// Load environment variables
+	err := godotenv.Load()
+	if err != nil {
+		log.Println("⚠️ No .env file found, using default values")
+	}
+
+	// Initialize database
+	db, err := ConnectDatabase()
+	if err != nil {
+		log.Fatalf("❌ Failed to connect to database: %v", err)
+	}
+	defer db.Close()
+
+	log.Println("✅ Database connected successfully")
+
+	router := SetupRouter(db)
 
 	port := os.Getenv("PORT")
 	if port == "" {
