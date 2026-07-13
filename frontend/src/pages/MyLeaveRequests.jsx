@@ -52,30 +52,16 @@ export const MyLeaveRequests = () => {
     }
   };
 
-  // Get status icon
-  const getStatusIcon = (status) => {
-    switch (status) {
-      case 'approved':
-        return '✅';
-      case 'rejected':
-        return '❌';
-      case 'pending':
-        return '⏳';
-      default:
-        return '📋';
-    }
-  };
-
   return (
     <div className="my-leave-requests-container">
       {/* Header */}
       <div className="requests-header">
         <div>
-          <h1>📋 My Leave Requests</h1>
+          <h1>My Leave Requests</h1>
           <p>Track all your leave applications and their status</p>
         </div>
         <button className="btn-back" onClick={() => navigate('/dashboard/employee')}>
-          ← Back to Dashboard
+          Back to Dashboard
         </button>
       </div>
 
@@ -91,19 +77,19 @@ export const MyLeaveRequests = () => {
           className={`filter-btn ${filter === 'pending' ? 'active' : ''}`}
           onClick={() => setFilter('pending')}
         >
-          ⏳ Pending
+          Pending
         </button>
         <button
           className={`filter-btn ${filter === 'approved' ? 'active' : ''}`}
           onClick={() => setFilter('approved')}
         >
-          ✅ Approved
+          Approved
         </button>
         <button
           className={`filter-btn ${filter === 'rejected' ? 'active' : ''}`}
           onClick={() => setFilter('rejected')}
         >
-          ❌ Rejected
+          Rejected
         </button>
       </div>
 
@@ -137,9 +123,9 @@ export const MyLeaveRequests = () => {
               {filteredRequests.map((request) => (
                 <tr key={request.id}>
                   <td className="leave-type">
-                    {request.leave_type_id === 1 && '🤒 Sick Leave'}
-                    {request.leave_type_id === 2 && '📅 Casual Leave'}
-                    {request.leave_type_id === 3 && '📚 Earned Leave'}
+                    {request.leave_type_id === 1 && 'Sick Leave'}
+                    {request.leave_type_id === 2 && 'Casual Leave'}
+                    {request.leave_type_id === 3 && 'Earned Leave'}
                   </td>
                   <td>{request.start_date}</td>
                   <td>{request.end_date}</td>
@@ -148,7 +134,7 @@ export const MyLeaveRequests = () => {
                   </td>
                   <td>
                     <span className={`status-badge ${getStatusBadge(request.status)}`}>
-                      {getStatusIcon(request.status)} {request.status.charAt(0).toUpperCase() + request.status.slice(1)}
+                      {request.status.charAt(0).toUpperCase() + request.status.slice(1)}
                     </span>
                   </td>
                   <td className="reason-cell">{request.reason || '-'}</td>
@@ -163,7 +149,7 @@ export const MyLeaveRequests = () => {
         </div>
       ) : !loading ? (
         <div className="empty-state">
-          <p>📭 No leave requests found</p>
+          <p>No leave requests found</p>
           <button className="btn-apply" onClick={() => navigate('/dashboard/employee/leave')}>
             Apply for Leave
           </button>

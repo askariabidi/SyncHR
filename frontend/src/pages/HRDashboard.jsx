@@ -3,6 +3,16 @@ import { useAuth } from '../context/AuthContext';
 import { leaveAPI, attendanceAPI, authAPI } from '../services/api';
 import '../styles/HRDashboard.css';
 
+const MONTH_NAMES = [
+  'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December',
+];
+
+const getTodayISO = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
+
 export const HRDashboard = () => {
   const { user, logout } = useAuth();
 
@@ -16,19 +26,25 @@ export const HRDashboard = () => {
   // for attendance tracking of all employees
   const [attendanceRecords, setAttendanceRecords] = useState([]);
   const [attendanceLoading, setAttendanceLoading] = useState(false);
+  const todayISO = getTodayISO();
+  const [selectedDate, setSelectedDate] = useState(todayISO);
+  const [viewYear, setViewYear] = useState(new Date().getFullYear());
+  const [viewMonth, setViewMonth] = useState(new Date().getMonth()); // 0-11
   // for the employee directory
   const [employees, setEmployees] = useState([]);
   const [employeesLoading, setEmployeesLoading] = useState(false);
   const [employeeSearch, setEmployeeSearch] = useState('');
 
-  // Fetch leave requests on refresh
+  // Fetch leave requests and employees on mount
   useEffect(() => {
     fetchLeaveRequests();
-    fetchAttendanceRecords();
     fetchEmployees();
-    // const interval = setInterval(fetchLeaveRequests, 5000);
-    // return () => clearInterval(interval);
   }, []);
+
+  // Fetch attendance whenever the selected date changes (defaults to today)
+  useEffect(() => {
+    fetchAttendanceRecords(selectedDate);
+  }, [selectedDate]);
 
   const fetchLeaveRequests = async () => {
     try {
@@ -60,12 +76,11 @@ export const HRDashboard = () => {
     setActionInProgress(true);
     try {
       await leaveAPI.approveLeave(requestId, approvalNotes);
-      alert('✅ Leave request approved successfully!');
       setSelectedRequest(null);
       setApprovalNotes('');
       fetchLeaveRequests();
     } catch (err) {
-      alert('❌ Failed to approve: ' + (err.response?.data?.message || 'Unknown error'));
+      alert('Failed to approve: ' + (err.response?.data?.message || 'Unknown error'));
     } finally {
       setActionInProgress(false);
     }
@@ -81,7 +96,6 @@ export const HRDashboard = () => {
     setActionInProgress(true);
     try {
       await leaveAPI.rejectLeave(requestId, approvalNotes);
-      alert('❌ Leave request rejected successfully!');
       setSelectedRequest(null);
       setApprovalNotes('');
       fetchLeaveRequests();
@@ -106,38 +120,10 @@ export const HRDashboard = () => {
     }
   };
 
-  // Get status icon
-  const getStatusIcon = (status) => {
-    switch (status) {
-      case 'approved':
-        return '✅';
-      case 'rejected':
-        return '❌';
-      case 'pending':
-        return '⏳';
-      default:
-        return '📋';
-    }
-  };
-
-  // Get leave type name
-  const getLeaveTypeName = (typeId) => {
-    switch (typeId) {
-      case 1:
-        return '🤒 Sick Leave';
-      case 2:
-        return '📅 Casual Leave';
-      case 3:
-        return '📚 Earned Leave';
-      default:
-        return 'Leave';
-    }
-  };
-
-  const fetchAttendanceRecords = async () => {
+  const fetchAttendanceRecords = async (date) => {
     try {
       setAttendanceLoading(true);
-      const response = await attendanceAPI.getAttendanceRecords();
+      const response = await attendanceAPI.getAttendanceRecords(date);
       setAttendanceRecords(response.data.data.attendance_records || []);
     } catch (err) {
       console.error('Failed to fetch attendance records:', err);
@@ -145,6 +131,51 @@ export const HRDashboard = () => {
       setAttendanceLoading(false);
     }
   };
+
+  // Whether the month currently shown in the day tabs is the real-world current month
+  const isCurrentMonthView = () => {
+    const now = new Date();
+    return viewYear === now.getFullYear() && viewMonth === now.getMonth();
+  };
+
+  const handlePrevMonth = () => {
+    if (viewMonth === 0) {
+      setViewYear((y) => y - 1);
+      setViewMonth(11);
+    } else {
+      setViewMonth((m) => m - 1);
+    }
+  };
+
+  const handleNextMonth = () => {
+    if (isCurrentMonthView()) return; // no browsing into the future
+    if (viewMonth === 11) {
+      setViewYear((y) => y + 1);
+      setViewMonth(0);
+    } else {
+      setViewMonth((m) => m + 1);
+    }
+  };
+
+  const buildDateStr = (year, month, day) =>
+    `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+
+  const handleDayClick = (day) => {
+    const dateStr = buildDateStr(viewYear, viewMonth, day);
+    if (dateStr > todayISO) return;
+    setSelectedDate(dateStr);
+  };
+
+  const handleDatePickerChange = (e) => {
+    const value = e.target.value;
+    if (!value) return;
+    setSelectedDate(value);
+    const [y, m] = value.split('-').map(Number);
+    setViewYear(y);
+    setViewMonth(m - 1);
+  };
+
+  const daysInViewMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
 
   const fetchEmployees = async () => {
     try {
@@ -175,12 +206,61 @@ export const HRDashboard = () => {
     );
   });
 
+  // The backend sends Go's zero-value time ("0001-01-01T00:00:00Z") instead of
+  // null when an employee hasn't checked out yet, so treat pre-1970 dates as absent
+  const isValidTimestamp = (timestamp) => {
+    if (!timestamp) return false;
+    return new Date(timestamp).getFullYear() > 1970;
+  };
+
+  const formatDate = (dateStr) => {
+    if (!dateStr) return '-';
+    const date = new Date(dateStr);
+    const day = date.getDate();
+    const suffix =
+      day % 10 === 1 && day !== 11
+        ? 'st'
+        : day % 10 === 2 && day !== 12
+        ? 'nd'
+        : day % 10 === 3 && day !== 13
+        ? 'rd'
+        : 'th';
+    const month = date.toLocaleString('en-US', { month: 'long' });
+    return `${day}${suffix} ${month} ${date.getFullYear()}`;
+  };
+
+  const formatDateWithWeekday = (dateStr) => {
+    if (!dateStr) return '-';
+    const weekday = new Date(dateStr).toLocaleString('en-US', { weekday: 'long' });
+    return `${weekday}, ${formatDate(dateStr)}`;
+  };
+
+  const formatTime24 = (timestamp) => {
+    if (!isValidTimestamp(timestamp)) return '-';
+    return new Date(timestamp).toLocaleTimeString('en-GB', {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    });
+  };
+
+  const formatDuration = (checkInStr, checkOutStr) => {
+    if (!isValidTimestamp(checkInStr) || !isValidTimestamp(checkOutStr)) return '-';
+    const diffMs = new Date(checkOutStr) - new Date(checkInStr);
+    if (diffMs <= 0) return '-';
+    const totalMinutes = Math.round(diffMs / 60000);
+    if (totalMinutes < 60) return '< 1 Hour';
+    const hours = Math.floor(totalMinutes / 60);
+    const minutes = totalMinutes % 60;
+    return `${hours} HR ${minutes} MINS`;
+  };
+
   return (
     <div className="hr-dashboard-container">
       {/* Header */}
       <div className="hr-header">
         <div>
-          <h1>👔 HR Manager Dashboard</h1>
+          <h1>HR Manager Dashboard</h1>
           <p>Manage employee leave requests</p>
         </div>
         <button className="btn-logout" onClick={logout}>
@@ -191,7 +271,6 @@ export const HRDashboard = () => {
       {/* Stats */}
       <div className="stats-grid">
         <div className="stat-card pending-stat">
-          <div className="stat-icon">⏳</div>
           <div className="stat-info">
             <div className="stat-number">
               {leaveRequests.filter((r) => r.status === 'pending').length}
@@ -200,7 +279,6 @@ export const HRDashboard = () => {
           </div>
         </div>
         <div className="stat-card approved-stat">
-          <div className="stat-icon">✅</div>
           <div className="stat-info">
             <div className="stat-number">
               {leaveRequests.filter((r) => r.status === 'approved').length}
@@ -209,7 +287,6 @@ export const HRDashboard = () => {
           </div>
         </div>
         <div className="stat-card rejected-stat">
-          <div className="stat-icon">❌</div>
           <div className="stat-info">
             <div className="stat-number">
               {leaveRequests.filter((r) => r.status === 'rejected').length}
@@ -218,7 +295,6 @@ export const HRDashboard = () => {
           </div>
         </div>
         <div className="stat-card total-stat">
-          <div className="stat-icon">📋</div>
           <div className="stat-info">
             <div className="stat-number">{leaveRequests.length}</div>
             <div className="stat-label">Total</div>
@@ -232,25 +308,25 @@ export const HRDashboard = () => {
           className={`tab ${filter === 'pending' ? 'active' : ''}`}
           onClick={() => setFilter('pending')}
         >
-          ⏳ Pending ({leaveRequests.filter((r) => r.status === 'pending').length})
+          Pending ({leaveRequests.filter((r) => r.status === 'pending').length})
         </button>
         <button
           className={`tab ${filter === 'approved' ? 'active' : ''}`}
           onClick={() => setFilter('approved')}
         >
-          ✅ Approved ({leaveRequests.filter((r) => r.status === 'approved').length})
+          Approved ({leaveRequests.filter((r) => r.status === 'approved').length})
         </button>
         <button
           className={`tab ${filter === 'rejected' ? 'active' : ''}`}
           onClick={() => setFilter('rejected')}
         >
-          ❌ Rejected ({leaveRequests.filter((r) => r.status === 'rejected').length})
+          Rejected ({leaveRequests.filter((r) => r.status === 'rejected').length})
         </button>
         <button
           className={`tab ${filter === 'all' ? 'active' : ''}`}
           onClick={() => setFilter('all')}
         >
-          📋 All ({leaveRequests.length})
+          All ({leaveRequests.length})
         </button>
       </div>
 
@@ -267,10 +343,9 @@ export const HRDashboard = () => {
             <div key={request.id} className={`request-card ${getStatusBadge(request.status)}`}>
               <div className="card-header">
                 <div className="card-title">
-                  <span className="status-icon">{getStatusIcon(request.status)}</span>
                   <div className="title-info">
                     <h3>{request.employee_first_name} {request.employee_last_name}</h3>
-                    <p>👤 ID: {request.user_id} • 🏢 {request.employee_department}</p>
+                    <p>ID: {request.user_id} &middot; {request.employee_department}</p>
                   </div>
                 </div>
                 <span className="status-badge">{request.status.toUpperCase()}</span>
@@ -280,11 +355,11 @@ export const HRDashboard = () => {
                 <div className="dates-row">
                   <div className="date-item">
                     <label>Start Date</label>
-                    <span>{request.start_date}</span>
+                    <span>{formatDateWithWeekday(request.start_date)}</span>
                   </div>
                   <div className="date-item">
                     <label>End Date</label>
-                    <span>{request.end_date}</span>
+                    <span>{formatDateWithWeekday(request.end_date)}</span>
                   </div>
                   <div className="date-item days-item">
                     <label>Days</label>
@@ -312,7 +387,7 @@ export const HRDashboard = () => {
                     className="btn-approve"
                     onClick={() => setSelectedRequest(request.id)}
                   >
-                    ✅ Approve
+                    Approve
                   </button>
                   <button
                     className="btn-reject"
@@ -320,7 +395,7 @@ export const HRDashboard = () => {
                       setSelectedRequest(request.id);
                     }}
                   >
-                    ❌ Reject
+                    Reject
                   </button>
                 </div>
               )}
@@ -329,13 +404,61 @@ export const HRDashboard = () => {
         </div>
       ) : !loading ? (
         <div className="empty-state">
-          <p>📭 No leave requests found</p>
+          <p>No leave requests found</p>
         </div>
       ) : null}
 
       {/* Attendance Section */}
       <div className="attendance-section">
-        <h2>📊 Monthly Attendance Report</h2>
+        <div className="attendance-section-header">
+          <h2>Attendance Report</h2>
+          <input
+            type="date"
+            className="date-picker-input"
+            value={selectedDate}
+            max={todayISO}
+            onChange={handleDatePickerChange}
+          />
+        </div>
+
+        <div className="month-nav">
+          <button className="month-nav-btn" onClick={handlePrevMonth} aria-label="Previous month">
+            &lsaquo;
+          </button>
+          <span className="month-nav-label">{MONTH_NAMES[viewMonth]} {viewYear}</span>
+          <button
+            className="month-nav-btn"
+            onClick={handleNextMonth}
+            disabled={isCurrentMonthView()}
+            aria-label="Next month"
+          >
+            &rsaquo;
+          </button>
+        </div>
+
+        <div className="day-tabs">
+          {Array.from({ length: daysInViewMonth }, (_, i) => i + 1).map((day) => {
+            const dateStr = buildDateStr(viewYear, viewMonth, day);
+            const isFuture = dateStr > todayISO;
+            const dayOfWeek = new Date(viewYear, viewMonth, day).getDay();
+            const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+            return (
+              <button
+                key={day}
+                className={`day-tab ${isWeekend ? 'weekend' : ''} ${dateStr === selectedDate ? 'active' : ''} ${dateStr === todayISO ? 'today' : ''}`}
+                onClick={() => handleDayClick(day)}
+                disabled={isFuture}
+              >
+                {day}
+              </button>
+            );
+          })}
+        </div>
+
+        <p className="attendance-selected-date">
+          Showing attendance for <strong>{formatDateWithWeekday(selectedDate)}</strong>
+          {selectedDate === todayISO && ' (Today)'}
+        </p>
 
         {attendanceLoading ? (
           <div className="loading">Loading attendance records...</div>
@@ -354,51 +477,42 @@ export const HRDashboard = () => {
                 </tr>
               </thead>
               <tbody>
-                {attendanceRecords.map((record, index) => {
-                  const checkIn = record.check_in_time ? new Date(record.check_in_time) : null;
-                  const checkOut = record.check_out_time ? new Date(record.check_out_time) : null;
-                  let duration = '-';
-
-                  if (checkIn && checkOut) {
-                    const hours = ((checkOut - checkIn) / (1000 * 60 * 60)).toFixed(2);
-                    duration = `${hours}h`;
-                  }
-
-                  return (
-                    <tr key={index}>
-                      <td>{record.user_id}</td>
-                      <td className="employee-name">{getEmployeeName(record.user_id)}</td>
-                      <td>{record.date}</td>
-                      <td>{checkIn ? checkIn.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : '-'}</td>
-                      <td>{checkOut ? checkOut.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : '-'}</td>
-                      <td className="duration-cell">{duration}</td>
-                      <td>
-                        <span className={`status-badge attendance-${record.status}`}>
-                          {record.status === 'checked_in' && '🕐 Checked In'}
-                          {record.status === 'checked_out' && '✅ Completed'}
-                        </span>
-                      </td>
-                    </tr>
-                  );
-                })}
+                {attendanceRecords.map((record, index) => (
+                  <tr key={index}>
+                    <td>{record.user_id}</td>
+                    <td className="employee-name">{getEmployeeName(record.user_id)}</td>
+                    <td>{formatDate(record.date)}</td>
+                    <td>{formatTime24(record.check_in_time)}</td>
+                    <td>{formatTime24(record.check_out_time)}</td>
+                    <td className="duration-cell">
+                      {formatDuration(record.check_in_time, record.check_out_time)}
+                    </td>
+                    <td>
+                      <span className={`status-badge attendance-${record.status}`}>
+                        {record.status === 'checked_in' && 'Checked In'}
+                        {record.status === 'checked_out' && 'Completed'}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>
         ) : (
           <div className="empty-state">
-            <p>📭 No attendance records found</p>
+            <p>No attendance records found</p>
           </div>
         )}
       </div>
 
       {/* Employees Section */}
       <div className="employees-section">
-        <h2>👥 All Employees</h2>
+        <h2>All Employees</h2>
 
         <input
           type="text"
           className="employee-search-input"
-          placeholder="🔍 Search by name, email, or department..."
+          placeholder="Search by name, email, or department..."
           value={employeeSearch}
           onChange={(e) => setEmployeeSearch(e.target.value)}
         />
@@ -426,7 +540,7 @@ export const HRDashboard = () => {
                     <td>{employee.email}</td>
                     <td>
                       <span className={`role-badge role-${employee.role}`}>
-                        {employee.role === 'hr_manager' ? '👔 HR Manager' : '👤 Employee'}
+                        {employee.role === 'hr_manager' ? 'HR Manager' : 'Employee'}
                       </span>
                     </td>
                     <td>{employee.department}</td>
@@ -438,7 +552,7 @@ export const HRDashboard = () => {
           </div>
         ) : (
           <div className="empty-state">
-            <p>📭 No employees found</p>
+            <p>No employees found</p>
           </div>
         )}
       </div>
@@ -450,7 +564,7 @@ export const HRDashboard = () => {
             <div className="modal-header">
               <h2>Leave Request Decision</h2>
               <button className="modal-close" onClick={() => setSelectedRequest(null)}>
-                ✕
+                &times;
               </button>
             </div>
 
@@ -470,14 +584,14 @@ export const HRDashboard = () => {
                 onClick={() => handleReject(selectedRequest)}
                 disabled={actionInProgress}
               >
-                {actionInProgress ? 'Processing...' : '❌ Reject'}
+                {actionInProgress ? 'Processing...' : 'Reject'}
               </button>
               <button
                 className="btn-modal-approve"
                 onClick={() => handleApprove(selectedRequest)}
                 disabled={actionInProgress}
               >
-                {actionInProgress ? 'Processing...' : '✅ Approve'}
+                {actionInProgress ? 'Processing...' : 'Approve'}
               </button>
               <button
                 className="btn-modal-cancel"

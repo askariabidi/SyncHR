@@ -76,12 +76,6 @@ export const Login = () => {
             {loading ? 'Logging in...' : 'Login'}
           </button>
         </form>
-
-        <div className="demo-credentials">
-          <p><strong>Demo Credentials:</strong></p>
-          <p>Employee: employee@example.com / password123</p>
-          <p>HR Manager: hr@example.com / password123</p>
-        </div>
       </div>
     </div>
   );

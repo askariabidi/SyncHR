@@ -86,7 +86,7 @@ export const ApplyLeave = () => {
         reason: formData.reason,
       });
 
-      setSuccess('✅ Leave request submitted successfully!');
+      setSuccess('Leave request submitted successfully!');
       
       // Reset form
       setFormData({
@@ -113,11 +113,11 @@ export const ApplyLeave = () => {
       {/* Header */}
       <div className="leave-header">
         <div>
-          <h1>📋 Apply for Leave</h1>
+          <h1>Apply for Leave</h1>
           <p>Submit your leave request for approval</p>
         </div>
         <button className="btn-back" onClick={() => navigate('/dashboard/employee')}>
-          ← Back to Dashboard
+          Back to Dashboard
         </button>
       </div>
 
@@ -203,14 +203,14 @@ export const ApplyLeave = () => {
 
           {/* Submit Button */}
           <button type="submit" className="btn-submit" disabled={loading}>
-            {loading ? 'Submitting...' : '✉️ Submit Leave Request'}
+            {loading ? 'Submitting...' : 'Submit Leave Request'}
           </button>
         </form>
       </div>
 
       {/* Info Section */}
       <div className="leave-info">
-        <h3>📌 Important Information</h3>
+        <h3>Important Information</h3>
         <ul>
           <li>Leave requests must be submitted at least 2 days in advance</li>
           <li>Your HR manager will review and approve/reject your request</li>

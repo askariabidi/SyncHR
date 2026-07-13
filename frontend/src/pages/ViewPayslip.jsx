@@ -55,11 +55,11 @@ export const ViewPayslip = () => {
       {/* Header */}
       <div className="payslip-header">
         <div>
-          <h1>💰 Payslips</h1>
+          <h1>Payslips</h1>
           <p>View your monthly salary information</p>
         </div>
         <button className="btn-back" onClick={() => navigate('/dashboard/employee')}>
-          ← Back to Dashboard
+          Back to Dashboard
         </button>
       </div>
 
@@ -114,7 +114,7 @@ export const ViewPayslip = () => {
         </div>
       ) : !loading ? (
         <div className="empty-state">
-          <p>📭 No payslips available</p>
+          <p>No payslips available</p>
         </div>
       ) : null}
 
@@ -122,7 +122,7 @@ export const ViewPayslip = () => {
       {selectedPayslip && (
         <div className="modal-overlay" onClick={() => setSelectedPayslip(null)}>
           <div className="modal payslip-modal" onClick={(e) => e.stopPropagation()}>
-            <button className="modal-close" onClick={() => setSelectedPayslip(null)}>✕</button>
+            <button className="modal-close" onClick={() => setSelectedPayslip(null)}>&times;</button>
 
             {/* Payslip Header */}
             <div className="payslip-document-header">

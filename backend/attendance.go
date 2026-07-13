@@ -530,9 +530,9 @@ func (h *AttendanceHandler) GetAttendanceHistory(w http.ResponseWriter, r *http.
 	})
 }
 
-// GetAllAttendanceRecords retrieves all employees' attendance for current month (HR only)
+// GetAllAttendanceRecords retrieves all employees' attendance for a single day (HR only).
+// Defaults to today; pass ?date=YYYY-MM-DD to view a different day.
 func (h *AttendanceHandler) GetAllAttendanceRecords(w http.ResponseWriter, r *http.Request) {
-	log.Printf("🚨 GetAllAttendanceRecords CALLED!")
 	w.Header().Set("Content-Type", "application/json")
 
 	// Extract role from context
@@ -549,22 +549,23 @@ func (h *AttendanceHandler) GetAllAttendanceRecords(w http.ResponseWriter, r *ht
 		return
 	}
 
-	log.Printf("📊 GetAllAttendanceRecords - Fetching for HR manager")
+	// Determine target date - defaults to today if not provided or invalid
+	targetDate := time.Now().Format("2006-01-02")
+	if dateParam := r.URL.Query().Get("date"); dateParam != "" {
+		if _, err := time.Parse("2006-01-02", dateParam); err == nil {
+			targetDate = dateParam
+		}
+	}
 
-	// Get current month and year
-	now := time.Now()
-	startDate := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, now.Location())
-	endDate := time.Date(now.Year(), now.Month()+1, 1, 0, 0, 0, 0, now.Location()).AddDate(0, 0, -1)
+	log.Printf("📊 GetAllAttendanceRecords - date: %s", targetDate)
 
-	log.Printf("📊 Date range: %s to %s", startDate.Format("2006-01-02"), endDate.Format("2006-01-02"))
-
-	// Query all attendance records for current month
+	// Query all attendance records for the target date
 	rows, err := h.db.Query(
-		`SELECT id, user_id, check_in_time, check_out_time, date, status, created_at, updated_at 
-		 FROM attendance 
-		 WHERE date >= $1 AND date <= $2
-		 ORDER BY date DESC, user_id ASC`,
-		startDate.Format("2006-01-02"), endDate.Format("2006-01-02"),
+		`SELECT id, user_id, check_in_time, check_out_time, date, status, created_at, updated_at
+		 FROM attendance
+		 WHERE date = $1
+		 ORDER BY user_id ASC`,
+		targetDate,
 	)
 
 	if err != nil {
@@ -606,13 +607,14 @@ func (h *AttendanceHandler) GetAllAttendanceRecords(w http.ResponseWriter, r *ht
 		attendanceRecords = append(attendanceRecords, record)
 	}
 
-	log.Printf("✅ Found %d attendance records for current month", len(attendanceRecords))
+	log.Printf("✅ Found %d attendance records for %s", len(attendanceRecords), targetDate)
 
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(SuccessResponse{
 		Message: "Attendance records retrieved successfully",
 		Data: map[string]interface{}{
 			"attendance_records": attendanceRecords,
+			"date":               targetDate,
 		},
 	})
 }

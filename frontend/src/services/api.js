@@ -192,8 +192,8 @@ export const attendanceAPI = {
   getHistory: (month, year) =>
     apiClient.get(`/attendance/history?month=${month}&year=${year}`),
 
-  getAttendanceRecords: () =>
-    apiClient.get('/attendance/records'),
+  getAttendanceRecords: (date) =>
+    apiClient.get('/attendance/records', { params: date ? { date } : {} }),
 };
 
 // ============================================================================
