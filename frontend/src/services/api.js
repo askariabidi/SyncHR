@@ -92,6 +92,9 @@ export const attendanceAPI = {
 // ============================================================================
 
 export const leaveAPI = {
+  getLeaveTypes: () =>
+    apiClient.get('/leave/types'),
+
   applyLeave: (leaveData) =>
     apiClient.post('/leave/apply', leaveData),
 

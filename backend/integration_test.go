@@ -306,8 +306,24 @@ func TestAttendance_CheckInCheckOutCycle(t *testing.T) {
 	if len(history.Data.AttendanceRecords) != 1 {
 		t.Fatalf("expected exactly 1 attendance record, got %d", len(history.Data.AttendanceRecords))
 	}
-	if got := history.Data.AttendanceRecords[0].Status; got != "checked_out" {
-		t.Errorf("status = %q, want checked_out", got)
+	record := history.Data.AttendanceRecords[0]
+	if record.Status != "checked_out" {
+		t.Errorf("status = %q, want checked_out", record.Status)
+	}
+
+	// Regression test: check_in_time and check_out_time used to be written in
+	// the server's local timezone but read back as UTC, so a check-out just
+	// moments after check-in could come out with a negative duration.
+	checkIn, err := time.Parse(time.RFC3339, record.CheckInTime)
+	if err != nil {
+		t.Fatalf("failed to parse check_in_time %q: %v", record.CheckInTime, err)
+	}
+	checkOut, err := time.Parse(time.RFC3339, record.CheckOutTime)
+	if err != nil {
+		t.Fatalf("failed to parse check_out_time %q: %v", record.CheckOutTime, err)
+	}
+	if checkOut.Before(checkIn) {
+		t.Errorf("check_out_time (%v) is before check_in_time (%v) - duration would be negative", checkOut, checkIn)
 	}
 }
 
@@ -369,6 +385,82 @@ func firstFundedLeaveType(t *testing.T, emp LoginResponse) (leaveTypeID, balance
 	return 0, 0
 }
 
+type leaveTypesResponse struct {
+	Data struct {
+		LeaveTypes []struct {
+			ID   int    `json:"id"`
+			Name string `json:"name"`
+		} `json:"leave_types"`
+	} `json:"data"`
+}
+
+// TC-LEAVE-00: every seeded leave type is available to pick from - this is
+// a regression test for a bug where the frontend hardcoded IDs 1-3 ("Sick",
+// "Casual", "Earned") and silently couldn't offer Maternity/Paternity leave
+// at all, or would mislabel types entirely if the seed order ever changed.
+func TestLeave_GetLeaveTypes(t *testing.T) {
+	emp := registerAndLogin(t, "employee")
+
+	var resp leaveTypesResponse
+	rec := apiRequest(t, http.MethodGet, "/api/leave/types", emp.Token, nil, &resp)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200. body: %s", rec.Code, rec.Body.String())
+	}
+	if len(resp.Data.LeaveTypes) < 5 {
+		t.Fatalf("expected at least 5 seeded leave types, got %d", len(resp.Data.LeaveTypes))
+	}
+}
+
+// TC-LEAVE-04: a leave request's response includes the leave type's actual
+// name (via a join), not just its ID - what MyLeaveRequests.jsx and
+// HRDashboard.jsx now render instead of a hardcoded ID-to-name switch.
+func TestLeave_RequestIncludesLeaveTypeName(t *testing.T) {
+	emp := registerAndLogin(t, "employee")
+	leaveTypeID, _ := firstFundedLeaveType(t, emp)
+
+	var typesResp leaveTypesResponse
+	rec := apiRequest(t, http.MethodGet, "/api/leave/types", emp.Token, nil, &typesResp)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("leave types status = %d, want 200. body: %s", rec.Code, rec.Body.String())
+	}
+	var expectedName string
+	for _, lt := range typesResp.Data.LeaveTypes {
+		if lt.ID == leaveTypeID {
+			expectedName = lt.Name
+		}
+	}
+	if expectedName == "" {
+		t.Fatal("could not resolve the expected leave type name")
+	}
+
+	rec = apiRequest(t, http.MethodPost, "/api/leave/apply", emp.Token, ApplyLeaveRequest{
+		LeaveTypeID:  leaveTypeID,
+		StartDate:    "2027-04-01",
+		EndDate:      "2027-04-01",
+		NumberOfDays: 1,
+		Reason:       "checking leave_type_name is populated",
+	}, nil)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("apply status = %d, want 201. body: %s", rec.Code, rec.Body.String())
+	}
+
+	type requestsResponse struct {
+		Data struct {
+			LeaveRequests []struct {
+				LeaveTypeName string `json:"leave_type_name"`
+			} `json:"leave_requests"`
+		} `json:"data"`
+	}
+	var listResp requestsResponse
+	rec = apiRequest(t, http.MethodGet, "/api/leave/requests", emp.Token, nil, &listResp)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("requests status = %d, want 200. body: %s", rec.Code, rec.Body.String())
+	}
+	if len(listResp.Data.LeaveRequests) == 0 || listResp.Data.LeaveRequests[0].LeaveTypeName != expectedName {
+		t.Fatalf("expected the newest request's leave_type_name to be %q, got %+v", expectedName, listResp.Data.LeaveRequests)
+	}
+}
+
 // TC-LEAVE-01: applying for more days than the current balance allows must
 // be rejected before any row is written.
 func TestLeave_ApplyInsufficientBalance_Rejected(t *testing.T) {
@@ -390,8 +482,8 @@ func TestLeave_ApplyInsufficientBalance_Rejected(t *testing.T) {
 
 // TC-LEAVE-02: the full HR approval flow - apply, approve, and confirm both
 // the balance deduction and the notification delivered to the employee.
-// This is also a regression test for a bug found and fixed this session:
-// ApproveLeave used to write no HTTP response body/status at all on success.
+// Also guards against a regression where ApproveLeave wrote no HTTP
+// response body/status at all on success.
 func TestLeave_FullApprovalFlow(t *testing.T) {
 	emp := registerAndLogin(t, "employee")
 	hr := registerAndLogin(t, "hr_manager")

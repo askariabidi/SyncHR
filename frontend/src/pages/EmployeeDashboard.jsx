@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { useAuth } from '../context/AuthContext';
+import { useState, useEffect, useCallback } from 'react';
+import { useAuth } from '../hooks/useAuth';
 import { attendanceAPI, leaveAPI } from '../services/api';
 import '../styles/Dashboard.css';
 import '../styles/AttendanceCalendar.css';
@@ -39,43 +39,7 @@ export const EmployeeDashboard = () => {
     daysInViewMonth,
   } = useDateNavigator();
 
-  // Fetch data on mount
-  useEffect(() => {
-    fetchData();
-    // Check attendance status every minute
-    const interval = setInterval(fetchAttendanceStatus, 60000);
-    return () => clearInterval(interval);
-  }, []);
-
-  // Live-ticking timer while checked in
-  useEffect(() => {
-    if (!checkedIn || !isValidTimestamp(checkInTime)) {
-      setElapsedSeconds(0);
-      return;
-    }
-    const startMs = new Date(checkInTime).getTime();
-    const tick = () => setElapsedSeconds(Math.max(0, Math.floor((Date.now() - startMs) / 1000)));
-    tick();
-    const timer = setInterval(tick, 1000);
-    return () => clearInterval(timer);
-  }, [checkedIn, checkInTime]);
-
-  const fetchData = async () => {
-    try {
-      setLoading(true);
-      setError('');
-      const balanceResponse = await leaveAPI.getBalance();
-      setLeaveBalance(balanceResponse.data.data.balances || []);
-      await fetchAttendanceStatus();
-    } catch (err) {
-      setError('Failed to load dashboard data');
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const fetchAttendanceStatus = async () => {
+  const fetchAttendanceStatus = useCallback(async () => {
     try {
       const response = await attendanceAPI.getAttendanceHistory();
       const records = response.data.data.attendance_records || [];
@@ -112,7 +76,42 @@ export const EmployeeDashboard = () => {
     } catch (err) {
       console.error('Failed to fetch attendance status:', err);
     }
-  };
+  }, []);
+
+  const fetchData = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError('');
+      const balanceResponse = await leaveAPI.getBalance();
+      setLeaveBalance(balanceResponse.data.data.balances || []);
+      await fetchAttendanceStatus();
+    } catch (err) {
+      setError('Failed to load dashboard data');
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  }, [fetchAttendanceStatus]);
+
+  // Fetch data on mount, then re-check attendance status every minute
+  useEffect(() => {
+    fetchData();
+    const interval = setInterval(fetchAttendanceStatus, 60000);
+    return () => clearInterval(interval);
+  }, [fetchData, fetchAttendanceStatus]);
+
+  // Live-ticking timer while checked in
+  useEffect(() => {
+    if (!checkedIn || !isValidTimestamp(checkInTime)) {
+      setElapsedSeconds(0);
+      return;
+    }
+    const startMs = new Date(checkInTime).getTime();
+    const tick = () => setElapsedSeconds(Math.max(0, Math.floor((Date.now() - startMs) / 1000)));
+    tick();
+    const timer = setInterval(tick, 1000);
+    return () => clearInterval(timer);
+  }, [checkedIn, checkInTime]);
 
   const handleCheckIn = async () => {
     setActionLoading(true);

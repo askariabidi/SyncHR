@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../hooks/useAuth';
 import { payslipAPI } from '../services/api';
 import '../styles/ViewPayslip.css';
 
@@ -12,11 +12,6 @@ export const ViewPayslip = () => {
   const [selectedPayslip, setSelectedPayslip] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-
-  // Fetch payslips on mount
-  useEffect(() => {
-    fetchPayslips();
-  }, []);
 
   const fetchPayslips = async () => {
     try {
@@ -31,6 +26,11 @@ export const ViewPayslip = () => {
       setLoading(false);
     }
   };
+
+  // Fetch payslips on mount
+  useEffect(() => {
+    fetchPayslips();
+  }, []);
 
   // Get month name
   const getMonthName = (month) => {

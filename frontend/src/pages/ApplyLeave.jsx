@@ -1,13 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext';
 import { leaveAPI } from '../services/api';
 import '../styles/ApplyLeave.css';
 
 export const ApplyLeave = () => {
   const navigate = useNavigate();
-  const { user } = useAuth();
-  
+
   const [formData, setFormData] = useState({
     leaveTypeId: '',
     startDate: '',
@@ -23,12 +21,10 @@ export const ApplyLeave = () => {
 
   // Fetch leave types on mount
   useEffect(() => {
-    // For now, using hardcoded leave types
-    setLeaveTypes([
-      { id: 1, name: 'Sick Leave' },
-      { id: 2, name: 'Casual Leave' },
-      { id: 3, name: 'Earned Leave' },
-    ]);
+    leaveAPI
+      .getLeaveTypes()
+      .then((response) => setLeaveTypes(response.data.data.leave_types || []))
+      .catch((err) => console.error('Failed to load leave types:', err));
   }, []);
 
   // Calculate number of days between dates
@@ -87,7 +83,7 @@ export const ApplyLeave = () => {
       });
 
       setSuccess('Leave request submitted successfully!');
-      
+
       // Reset form
       setFormData({
         leaveTypeId: '',
@@ -212,7 +208,6 @@ export const ApplyLeave = () => {
       <div className="leave-info">
         <h3>Important Information</h3>
         <ul>
-          <li>Leave requests must be submitted at least 2 days in advance</li>
           <li>Your HR manager will review and approve/reject your request</li>
           <li>You will receive a notification once your request is processed</li>
           <li>Check your leave balance before applying</li>

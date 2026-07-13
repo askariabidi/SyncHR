@@ -1,22 +1,15 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext';
 import { leaveAPI } from '../services/api';
 import '../styles/MyLeaveRequests.css';
 
 export const MyLeaveRequests = () => {
   const navigate = useNavigate();
-  const { user } = useAuth();
-  
+
   const [leaveRequests, setLeaveRequests] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [filter, setFilter] = useState('all'); // all, pending, approved, rejected
-
-  // Fetch leave requests on mount
-  useEffect(() => {
-    fetchLeaveRequests();
-  }, []);
 
   const fetchLeaveRequests = async () => {
     try {
@@ -31,6 +24,11 @@ export const MyLeaveRequests = () => {
       setLoading(false);
     }
   };
+
+  // Fetch leave requests on mount
+  useEffect(() => {
+    fetchLeaveRequests();
+  }, []);
 
   // Filter requests based on status
   const filteredRequests = leaveRequests.filter((request) => {
@@ -122,11 +120,7 @@ export const MyLeaveRequests = () => {
             <tbody>
               {filteredRequests.map((request) => (
                 <tr key={request.id}>
-                  <td className="leave-type">
-                    {request.leave_type_id === 1 && 'Sick Leave'}
-                    {request.leave_type_id === 2 && 'Casual Leave'}
-                    {request.leave_type_id === 3 && 'Earned Leave'}
-                  </td>
+                  <td className="leave-type">{request.leave_type_name}</td>
                   <td>{request.start_date}</td>
                   <td>{request.end_date}</td>
                   <td className="days-cell">

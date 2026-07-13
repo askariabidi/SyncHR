@@ -1,20 +1,11 @@
-import React from 'react';
 import { Navigate } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../hooks/useAuth';
 
 // Protected Route Component. Pass `allowedRoles` to also enforce that the
 // logged-in user's role matches the page - otherwise they're redirected to
 // their own dashboard instead of landing on a page where every action 403s.
 export const ProtectedRoute = ({ children, allowedRoles }) => {
-  const { isAuthenticated, loading, user } = useAuth();
-
-  if (loading) {
-    return (
-      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
-        <p>Loading...</p>
-      </div>
-    );
-  }
+  const { isAuthenticated, user } = useAuth();
 
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;

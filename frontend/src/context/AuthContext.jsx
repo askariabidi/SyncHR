@@ -1,26 +1,16 @@
-import React, { createContext, useState, useEffect } from 'react';
-
-// Create Auth Context
-export const AuthContext = createContext();
+import { useState, useEffect } from 'react';
+import { AuthContext } from './auth-context-value';
 
 // Auth Provider Component
 export const AuthProvider = ({ children }) => {
-  const [user, setUser] = useState(null);
-  const [token, setToken] = useState(null);
-  const [loading, setLoading] = useState(true);
-
-  // Initialize auth state from localStorage
-  useEffect(() => {
-    const savedToken = localStorage.getItem('token');
+  // Read straight from localStorage on first render instead of in an effect -
+  // avoids an extra render pass and the "logged out" flash that used to
+  // happen while a useEffect caught up on mount.
+  const [user, setUser] = useState(() => {
     const savedUser = localStorage.getItem('user');
-
-    if (savedToken && savedUser) {
-      setToken(savedToken);
-      setUser(JSON.parse(savedUser));
-    }
-
-    setLoading(false);
-  }, []);
+    return savedUser ? JSON.parse(savedUser) : null;
+  });
+  const [token, setToken] = useState(() => localStorage.getItem('token'));
 
   // Keep this tab's auth state in sync when another tab logs in/out or
   // switches accounts. The browser only fires 'storage' in OTHER tabs, which
@@ -73,7 +63,6 @@ export const AuthProvider = ({ children }) => {
   const value = {
     user,
     token,
-    loading,
     login,
     logout,
     updateUser,
@@ -83,11 +72,4 @@ export const AuthProvider = ({ children }) => {
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
 
-// Custom hook to use Auth Context
-export const useAuth = () => {
-  const context = React.useContext(AuthContext);
-  if (!context) {
-    throw new Error('useAuth must be used within AuthProvider');
-  }
-  return context;
-};
+export default AuthProvider;

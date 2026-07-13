@@ -1,8 +1,7 @@
-import React, { createContext, useContext, useEffect, useRef, useState, useCallback } from 'react';
-import { useAuth } from './AuthContext';
+import { useEffect, useRef, useState, useCallback } from 'react';
+import { useAuth } from '../hooks/useAuth';
 import { notificationAPI, API_BASE_URL } from '../services/api';
-
-const NotificationContext = createContext();
+import { NotificationContext } from './notification-context-value';
 
 const RECONNECT_DELAY_MS = 3000;
 
@@ -45,7 +44,10 @@ export const NotificationProvider = ({ children }) => {
     }
   }, []);
 
-  // Open (and keep alive) a WebSocket connection for real-time push while logged in
+  // Open (and keep alive) a WebSocket connection for real-time push while logged in.
+  // Also clears out the cached notifications on logout - that reset has to happen
+  // here rather than at init, since it's reacting to isAuthenticated flipping to
+  // false, not just running once on mount.
   useEffect(() => {
     if (!isAuthenticated || !token) {
       if (socketRef.current) {
@@ -121,10 +123,4 @@ export const NotificationProvider = ({ children }) => {
   return <NotificationContext.Provider value={value}>{children}</NotificationContext.Provider>;
 };
 
-export const useNotifications = () => {
-  const context = useContext(NotificationContext);
-  if (!context) {
-    throw new Error('useNotifications must be used within NotificationProvider');
-  }
-  return context;
-};
+export default NotificationProvider;

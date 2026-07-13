@@ -301,9 +301,12 @@ func (h *AttendanceHandler) CheckIn(w http.ResponseWriter, r *http.Request) {
 
 	log.Printf("✅ CheckIn - UserID: %d", userID)
 
-	// Get today's date
+	// Get today's date. The timestamp itself is stored in UTC (Postgres'
+	// TIMESTAMP column has no timezone of its own, so writing local time
+	// here and reading it back as UTC later would silently skew every
+	// duration calculation by the server's UTC offset).
 	today := time.Now().Format("2006-01-02")
-	currentTime := time.Now()
+	currentTime := time.Now().UTC()
 
 	// Check if already checked in today
 	var existingID int
@@ -384,9 +387,11 @@ func (h *AttendanceHandler) CheckOut(w http.ResponseWriter, r *http.Request) {
 
 	log.Printf("✅ CheckOut - UserID: %d", userID)
 
-	// Get today's date
+	// Get today's date. currentTime stays in UTC to match how check_in_time
+	// was written - otherwise the duration below comes out skewed by
+	// whatever the server's local UTC offset happens to be.
 	today := time.Now().Format("2006-01-02")
-	currentTime := time.Now()
+	currentTime := time.Now().UTC()
 
 	// Find today's check-in record
 	var attendanceID int

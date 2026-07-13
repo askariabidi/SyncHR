@@ -153,14 +153,14 @@ CREATE TABLE IF NOT EXISTS notifications (
 -- INDEXES FOR PERFORMANCE
 -- ============================================================================
 -- Indexes to optimize frequently queried columns
-CREATE INDEX idx_attendance_user_date ON attendance(user_id, date);
-CREATE INDEX idx_break_time_user_date ON break_time(user_id, date);
-CREATE INDEX idx_leave_request_user ON leave_request(user_id);
-CREATE INDEX idx_leave_request_status ON leave_request(status);
-CREATE INDEX idx_leave_balance_user ON leave_balance(user_id);
-CREATE INDEX idx_payslip_user_month_year ON payslip(user_id, month, year);
-CREATE INDEX idx_notifications_user ON notifications(user_id);
-CREATE INDEX idx_public_holidays_date ON public_holidays(holiday_date);
+CREATE INDEX IF NOT EXISTS idx_attendance_user_date ON attendance(user_id, date);
+CREATE INDEX IF NOT EXISTS idx_break_time_user_date ON break_time(user_id, date);
+CREATE INDEX IF NOT EXISTS idx_leave_request_user ON leave_request(user_id);
+CREATE INDEX IF NOT EXISTS idx_leave_request_status ON leave_request(status);
+CREATE INDEX IF NOT EXISTS idx_leave_balance_user ON leave_balance(user_id);
+CREATE INDEX IF NOT EXISTS idx_payslip_user_month_year ON payslip(user_id, month, year);
+CREATE INDEX IF NOT EXISTS idx_notifications_user ON notifications(user_id);
+CREATE INDEX IF NOT EXISTS idx_public_holidays_date ON public_holidays(holiday_date);
 
 -- ============================================================================
 -- SEED DATA: DEFAULT LEAVE TYPES
@@ -189,6 +189,23 @@ INSERT INTO public_holidays (name, holiday_date, country, description) VALUES
 ('Immaculate Conception', '2025-12-08', 'Italy', 'Religious observance'),
 ('Christmas Day', '2025-12-25', 'Italy', 'Christian holiday'),
 ('St. Stephen''s Day', '2025-12-26', 'Italy', 'Day after Christmas')
+ON CONFLICT (holiday_date) DO NOTHING;
+
+-- ============================================================================
+-- SEED DATA: SAMPLE PUBLIC HOLIDAYS (Italy 2026)
+-- ============================================================================
+INSERT INTO public_holidays (name, holiday_date, country, description) VALUES
+('New Year''s Day', '2026-01-01', 'Italy', 'Beginning of the calendar year'),
+('Epiphany', '2026-01-06', 'Italy', 'Religious observance'),
+('Easter Monday', '2026-04-06', 'Italy', 'Day after Easter'),
+('Liberation Day', '2026-04-25', 'Italy', 'Italian national holiday'),
+('Labour Day', '2026-05-01', 'Italy', 'International Workers'' Day'),
+('Republic Day', '2026-06-02', 'Italy', 'Italian national holiday'),
+('Assumption of Mary', '2026-08-15', 'Italy', 'Religious observance'),
+('All Saints'' Day', '2026-11-01', 'Italy', 'Religious observance'),
+('Immaculate Conception', '2026-12-08', 'Italy', 'Religious observance'),
+('Christmas Day', '2026-12-25', 'Italy', 'Christian holiday'),
+('St. Stephen''s Day', '2026-12-26', 'Italy', 'Day after Christmas')
 ON CONFLICT (holiday_date) DO NOTHING;
 
 -- ============================================================================

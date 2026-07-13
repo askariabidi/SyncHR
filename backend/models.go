@@ -122,10 +122,11 @@ type LeaveRequest struct {
 	ApprovalNotes *string    `json:"approval_notes"`
 	CreatedAt     time.Time  `json:"created_at"`
 	UpdatedAt     time.Time  `json:"updated_at"`
-	// Additional fields from user join
+	// Additional fields from user/leave_type joins
 	EmployeeFirstName  *string `json:"employee_first_name"`
 	EmployeeLastName   *string `json:"employee_last_name"`
 	EmployeeDepartment *string `json:"employee_department"`
+	LeaveTypeName      *string `json:"leave_type_name"`
 }
 
 // ApplyLeaveRequest represents the request to apply for leave
@@ -210,15 +211,4 @@ type ErrorResponse struct {
 type SuccessResponse struct {
 	Message string      `json:"message"`
 	Data    interface{} `json:"data,omitempty"`
-}
-
-// ============================================================================
-// JWT CLAIMS
-// ============================================================================
-
-// Claims represents JWT token claims
-type Claims struct {
-	UserID int    `json:"user_id"`
-	Email  string `json:"email"`
-	Role   string `json:"role"`
 }

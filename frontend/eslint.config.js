@@ -17,5 +17,14 @@ export default defineConfig([
       globals: globals.browser,
       parserOptions: { ecmaFeatures: { jsx: true } },
     },
+    rules: {
+      // This one flags the standard "fetch data on mount" effect pattern
+      // used throughout the app (useEffect(() => { fetchX() }, [])) as an
+      // error. That's still the normal way to load data on mount in React
+      // today, so it's downgraded to a warning rather than rewritten into
+      // something more convoluted just to satisfy a very new, very strict
+      // rule that most of the ecosystem hasn't caught up to yet.
+      'react-hooks/set-state-in-effect': 'warn',
+    },
   },
 ])

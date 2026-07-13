@@ -22,6 +22,40 @@ func NewLeaveHandler(db *sql.DB, notifier *NotificationHandler) *LeaveHandler {
 	return &LeaveHandler{db: db, notifier: notifier}
 }
 
+// GetLeaveTypes lists every leave type employees can apply for
+func (h *LeaveHandler) GetLeaveTypes(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+
+	rows, err := h.db.Query("SELECT id, name, description, max_days_per_year FROM leave_types ORDER BY id")
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(ErrorResponse{
+			Error:   "database_error",
+			Message: "Failed to retrieve leave types",
+			Code:    500,
+		})
+		return
+	}
+	defer rows.Close()
+
+	leaveTypes := []LeaveType{}
+	for rows.Next() {
+		var lt LeaveType
+		if err := rows.Scan(&lt.ID, &lt.Name, &lt.Description, &lt.MaxDaysPerYear); err != nil {
+			continue
+		}
+		leaveTypes = append(leaveTypes, lt)
+	}
+
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(SuccessResponse{
+		Message: "Leave types retrieved successfully",
+		Data: map[string]interface{}{
+			"leave_types": leaveTypes,
+		},
+	})
+}
+
 // ApplyLeave handles leave request submission
 func (h *LeaveHandler) ApplyLeave(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
@@ -174,141 +208,6 @@ func (h *LeaveHandler) GetLeaveBalance(w http.ResponseWriter, r *http.Request) {
 }
 
 // GetLeaveRequests retrieves leave requests for authenticated user
-// func (h *LeaveHandler) GetLeaveRequests(w http.ResponseWriter, r *http.Request) {
-// 	w.Header().Set("Content-Type", "application/json")
-
-// 	// Extract user ID and role from context
-// 	userID, ok := r.Context().Value("user_id").(int)
-// 	if !ok {
-// 		w.WriteHeader(http.StatusUnauthorized)
-// 		json.NewEncoder(w).Encode(ErrorResponse{
-// 			Error:   "unauthorized",
-// 			Message: "User not authenticated",
-// 			Code:    401,
-// 		})
-// 		return
-// 	}
-
-// 	role, _ := r.Context().Value("role").(string)
-
-// 	var query string
-// 	var queryParam interface{}
-
-// 	// HR managers see all leave requests; employees see their own
-// 	if role == "hr_manager" {
-// 		query = `SELECT id, user_id, leave_type_id, start_date, end_date, number_of_days, reason, status, approved_by, approval_date, approval_notes, created_at, updated_at
-// 		         FROM leave_request ORDER BY created_at DESC`
-// 		queryParam = nil
-// 	} else {
-// 		query = `SELECT id, user_id, leave_type_id, start_date, end_date, number_of_days, reason, status, approved_by, approval_date, approval_notes, created_at, updated_at
-// 		         FROM leave_request WHERE user_id = $1 ORDER BY created_at DESC`
-// 		queryParam = userID
-// 	}
-
-// 	var rows *sql.Rows
-// 	var err error
-
-// 	if queryParam == nil {
-// 		rows, err = h.db.Query(query)
-// 	} else {
-// 		rows, err = h.db.Query(query, queryParam)
-// 	}
-
-// 	if err != nil {
-// 		w.WriteHeader(http.StatusInternalServerError)
-// 		json.NewEncoder(w).Encode(ErrorResponse{
-// 			Error:   "database_error",
-// 			Message: "Failed to retrieve leave requests",
-// 			Code:    500,
-// 		})
-// 		return
-// 	}
-// 	defer rows.Close()
-
-// 	var leaveRequests []LeaveRequest = []LeaveRequest{}
-// 	for rows.Next() {
-// 		var lr LeaveRequest
-// 		err := rows.Scan(&lr.ID, &lr.UserID, &lr.LeaveTypeID, &lr.StartDate, &lr.EndDate, &lr.NumberOfDays, &lr.Reason, &lr.Status, &lr.ApprovedBy, &lr.ApprovalDate, &lr.ApprovalNotes, &lr.CreatedAt, &lr.UpdatedAt)
-// 		if err != nil {
-// 			continue
-// 		}
-// 		leaveRequests = append(leaveRequests, lr)
-// 	}
-
-// 	w.WriteHeader(http.StatusOK)
-// 	json.NewEncoder(w).Encode(SuccessResponse{
-// 		Message: "Leave requests retrieved successfully",
-// 		Data: map[string]interface{}{
-// 			"leave_requests": leaveRequests,
-// 		},
-// 	})
-// }
-
-// GetLeaveRequests retrieves leave requests for authenticated user
-// func (h *LeaveHandler) GetLeaveRequests(w http.ResponseWriter, r *http.Request) {
-// 	w.Header().Set("Content-Type", "application/json")
-
-// 	// Extract user ID and role from context
-// 	userID, ok := r.Context().Value("user_id").(int)
-// 	if !ok {
-// 		w.WriteHeader(http.StatusUnauthorized)
-// 		json.NewEncoder(w).Encode(ErrorResponse{
-// 			Error:   "unauthorized",
-// 			Message: "User not authenticated",
-// 			Code:    401,
-
-// 		})
-// 		return
-// 	}
-
-// 	role, _ := r.Context().Value("role").(string)
-
-// 	var query string
-// 	var rows *sql.Rows
-// 	var err error
-
-// 	// HR managers see all leave requests; employees see their own
-// 	if role == "hr_manager" {
-// 		query = `SELECT id, user_id, leave_type_id, start_date, end_date, number_of_days, reason, status, approved_by, approval_date, approval_notes, created_at, updated_at
-// 		         FROM leave_request ORDER BY created_at DESC`
-// 		rows, err = h.db.Query(query)
-// 	} else {
-// 		query = `SELECT id, user_id, leave_type_id, start_date, end_date, number_of_days, reason, status, approved_by, approval_date, approval_notes, created_at, updated_at
-// 		         FROM leave_request WHERE user_id = $1 ORDER BY created_at DESC`
-// 		rows, err = h.db.Query(query, userID)
-// 	}
-
-// 	if err != nil {
-// 		w.WriteHeader(http.StatusInternalServerError)
-// 		json.NewEncoder(w).Encode(ErrorResponse{
-// 			Error:   "database_error",
-// 			Message: "Failed to retrieve leave requests",
-// 			Code:    500,
-// 		})
-// 		return
-// 	}
-// 	defer rows.Close()
-
-// 	leaveRequests := []LeaveRequest{}
-// 	for rows.Next() {
-// 		var lr LeaveRequest
-// 		err := rows.Scan(&lr.ID, &lr.UserID, &lr.LeaveTypeID, &lr.StartDate, &lr.EndDate, &lr.NumberOfDays, &lr.Reason, &lr.Status, &lr.ApprovedBy, &lr.ApprovalDate, &lr.ApprovalNotes, &lr.CreatedAt, &lr.UpdatedAt)
-// 		if err != nil {
-// 			continue
-// 		}
-// 		leaveRequests = append(leaveRequests, lr)
-// 	}
-
-// 	w.WriteHeader(http.StatusOK)
-// 	json.NewEncoder(w).Encode(SuccessResponse{
-// 		Message: "Leave requests retrieved successfully",
-// 		Data: map[string]interface{}{
-// 			"leave_requests": leaveRequests,
-// 		},
-// 	})
-// }
-
-// GetLeaveRequests retrieves leave requests for authenticated user
 func (h *LeaveHandler) GetLeaveRequests(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
@@ -326,31 +225,24 @@ func (h *LeaveHandler) GetLeaveRequests(w http.ResponseWriter, r *http.Request) 
 
 	role, _ := r.Context().Value("role").(string)
 
-	// Debug logging
-	log.Printf("🔍 GetLeaveRequests - UserID: %d, Role: %s", userID, role)
-
 	var query string
 	var rows *sql.Rows
 	var err error
 
-	// HR managers see all leave requests; employees see their own
+	// HR managers see everyone's requests; employees only see their own
 	if role == "hr_manager" {
-		// query = `SELECT id, user_id, leave_type_id, start_date, end_date, number_of_days, reason, status, approved_by, approval_date, approval_notes, created_at, updated_at
-		//          FROM leave_request ORDER BY created_at DESC`
-		query = `SELECT lr.id, lr.user_id, lr.leave_type_id, lr.start_date, lr.end_date, lr.number_of_days, lr.reason, lr.status, lr.approved_by, lr.approval_date, lr.approval_notes, lr.created_at, lr.updated_at, u.first_name, u.last_name, u.department
+		query = `SELECT lr.id, lr.user_id, lr.leave_type_id, lr.start_date, lr.end_date, lr.number_of_days, lr.reason, lr.status, lr.approved_by, lr.approval_date, lr.approval_notes, lr.created_at, lr.updated_at, u.first_name, u.last_name, u.department, lt.name
          FROM leave_request lr
          JOIN users u ON lr.user_id = u.id
+         JOIN leave_types lt ON lr.leave_type_id = lt.id
          ORDER BY lr.created_at DESC`
-		log.Printf("📊 HR Query executing for all requests")
 		rows, err = h.db.Query(query)
 	} else {
-		// query = `SELECT id, user_id, leave_type_id, start_date, end_date, number_of_days, reason, status, approved_by, approval_date, approval_notes, created_at, updated_at
-		//          FROM leave_request WHERE user_id = $1 ORDER BY created_at DESC`
-		query = `SELECT lr.id, lr.user_id, lr.leave_type_id, lr.start_date, lr.end_date, lr.number_of_days, lr.reason, lr.status, lr.approved_by, lr.approval_date, lr.approval_notes, lr.created_at, lr.updated_at, u.first_name, u.last_name, u.department
+		query = `SELECT lr.id, lr.user_id, lr.leave_type_id, lr.start_date, lr.end_date, lr.number_of_days, lr.reason, lr.status, lr.approved_by, lr.approval_date, lr.approval_notes, lr.created_at, lr.updated_at, u.first_name, u.last_name, u.department, lt.name
          FROM leave_request lr
          JOIN users u ON lr.user_id = u.id
+         JOIN leave_types lt ON lr.leave_type_id = lt.id
          WHERE lr.user_id = $1 ORDER BY lr.created_at DESC`
-		log.Printf("📊 Employee Query executing for user_id: %d", userID)
 		rows, err = h.db.Query(query, userID)
 	}
 
@@ -369,15 +261,13 @@ func (h *LeaveHandler) GetLeaveRequests(w http.ResponseWriter, r *http.Request) 
 	leaveRequests := []LeaveRequest{}
 	for rows.Next() {
 		var lr LeaveRequest
-		err := rows.Scan(&lr.ID, &lr.UserID, &lr.LeaveTypeID, &lr.StartDate, &lr.EndDate, &lr.NumberOfDays, &lr.Reason, &lr.Status, &lr.ApprovedBy, &lr.ApprovalDate, &lr.ApprovalNotes, &lr.CreatedAt, &lr.UpdatedAt, &lr.EmployeeFirstName, &lr.EmployeeLastName, &lr.EmployeeDepartment)
+		err := rows.Scan(&lr.ID, &lr.UserID, &lr.LeaveTypeID, &lr.StartDate, &lr.EndDate, &lr.NumberOfDays, &lr.Reason, &lr.Status, &lr.ApprovedBy, &lr.ApprovalDate, &lr.ApprovalNotes, &lr.CreatedAt, &lr.UpdatedAt, &lr.EmployeeFirstName, &lr.EmployeeLastName, &lr.EmployeeDepartment, &lr.LeaveTypeName)
 		if err != nil {
 			log.Printf("❌ Scan error: %v", err)
 			continue
 		}
 		leaveRequests = append(leaveRequests, lr)
 	}
-
-	log.Printf("✅ Found %d leave requests", len(leaveRequests))
 
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(SuccessResponse{

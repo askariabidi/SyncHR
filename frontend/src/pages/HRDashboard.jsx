@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { useAuth } from '../context/AuthContext';
+import { useState, useEffect } from 'react';
+import { useAuth } from '../hooks/useAuth';
 import { leaveAPI, attendanceAPI, authAPI, notificationAPI } from '../services/api';
 import '../styles/HRDashboard.css';
 import '../styles/AttendanceCalendar.css';
@@ -53,17 +53,6 @@ export const HRDashboard = () => {
   const [resetPasswordResult, setResetPasswordResult] = useState(null); // { email, temporary_password }
   const [resettingPassword, setResettingPassword] = useState(false);
   const [copyStatus, setCopyStatus] = useState('');
-
-  // Fetch leave requests and employees on mount
-  useEffect(() => {
-    fetchLeaveRequests();
-    fetchEmployees();
-  }, []);
-
-  // Fetch attendance whenever the selected date changes (defaults to today)
-  useEffect(() => {
-    fetchAttendanceRecords(selectedDate);
-  }, [selectedDate]);
 
   const fetchLeaveRequests = async () => {
     try {
@@ -210,6 +199,17 @@ export const HRDashboard = () => {
     }
   };
 
+  // Fetch leave requests and employees on mount
+  useEffect(() => {
+    fetchLeaveRequests();
+    fetchEmployees();
+  }, []);
+
+  // Fetch attendance whenever the selected date changes (defaults to today)
+  useEffect(() => {
+    fetchAttendanceRecords(selectedDate);
+  }, [selectedDate]);
+
   const getEmployeeName = (userId) => {
     const employee = employees.find((e) => e.id === userId);
     return employee ? `${employee.first_name} ${employee.last_name}` : `Employee ${userId}`;
@@ -349,7 +349,7 @@ export const HRDashboard = () => {
                 <div className="card-title">
                   <div className="title-info">
                     <h3>{request.employee_first_name} {request.employee_last_name}</h3>
-                    <p>ID: {request.user_id} &middot; {request.employee_department}</p>
+                    <p>ID: {request.user_id} &middot; {request.employee_department} &middot; {request.leave_type_name}</p>
                   </div>
                 </div>
                 <span className="status-badge">{request.status.toUpperCase()}</span>

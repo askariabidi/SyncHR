@@ -1,5 +1,5 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { useNotifications } from '../context/NotificationContext';
+import { useState, useRef, useEffect } from 'react';
+import { useNotifications } from '../hooks/useNotifications';
 import '../styles/NotificationBell.css';
 
 const BellIcon = () => (

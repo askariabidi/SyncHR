@@ -80,6 +80,7 @@ func SetupRouter(db *sql.DB) *mux.Router {
 	subrouter.HandleFunc("/attendance/records", attendanceHandler.GetAllAttendanceRecords).Methods("GET", "OPTIONS")
 
 	// Leave Routes
+	subrouter.HandleFunc("/leave/types", leaveHandler.GetLeaveTypes).Methods("GET", "OPTIONS")
 	subrouter.HandleFunc("/leave/apply", leaveHandler.ApplyLeave).Methods("POST", "OPTIONS")
 	subrouter.HandleFunc("/leave/balance", leaveHandler.GetLeaveBalance).Methods("GET", "OPTIONS")
 	subrouter.HandleFunc("/leave/requests", leaveHandler.GetLeaveRequests).Methods("GET", "OPTIONS")
